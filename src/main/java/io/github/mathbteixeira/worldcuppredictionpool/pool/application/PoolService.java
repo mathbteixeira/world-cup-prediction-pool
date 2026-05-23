@@ -55,13 +55,14 @@ public class PoolService {
 
     @Transactional
     public PoolSummaryResponse joinPool(UUID poolId, String inviteCode, String email) {
-        UserAccount user = getUserByEmail(email);
         PredictionPool pool = predictionPoolRepository.findById(poolId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
 
         if (!pool.getInviteCode().equalsIgnoreCase(inviteCode.trim())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid invite code");
         }
+
+        UserAccount user = getUserByEmail(email);
         if (poolMembershipRepository.findByPoolIdAndUserId(poolId, user.getId()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User is already a member of this pool");
         }

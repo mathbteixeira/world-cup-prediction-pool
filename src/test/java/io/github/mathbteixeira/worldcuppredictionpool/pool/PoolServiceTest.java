@@ -16,11 +16,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.UUID;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,5 +59,19 @@ class PoolServiceTest {
         ArgumentCaptor<PoolMembership> membershipCaptor = ArgumentCaptor.forClass(PoolMembership.class);
         verify(poolMembershipRepository).save(membershipCaptor.capture());
         assertThat(membershipCaptor.getValue().getRole().name()).isEqualTo("OWNER");
+    }
+
+    @Test
+    void shouldRejectInvalidInviteCodeBeforeLoadingUser() {
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
+        PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner);
+        UUID poolId = UUID.randomUUID();
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+
+        assertThatThrownBy(() -> poolService.joinPool(poolId, "WRONG123", "ana@example.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("403 FORBIDDEN");
+
+        verify(userAccountRepository, never()).findByEmailIgnoreCase("ana@example.com");
     }
 }
