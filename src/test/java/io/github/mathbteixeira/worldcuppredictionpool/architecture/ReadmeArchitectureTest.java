@@ -15,11 +15,10 @@ class ReadmeArchitectureTest {
         String readme = Files.readString(Path.of("README.md"));
 
         assertThat(readme)
-                .contains("## Proposed architecture")
-                .contains("### Package layout")
-                .contains("### Aggregates and boundaries")
-                .contains("### Database tables")
-                .contains("### API surface")
-                .contains("## First implementation milestones");
+                .contains("## Domain model")
+                .contains("### Aggregate boundaries")
+                .contains("## Scoring engine")
+                .contains("## Recalculation flow (result upsert)")
+                .contains("## Tradeoffs and future improvements");
     }
 }

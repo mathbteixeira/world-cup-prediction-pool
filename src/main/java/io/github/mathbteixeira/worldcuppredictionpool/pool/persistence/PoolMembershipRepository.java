@@ -11,5 +11,7 @@ public interface PoolMembershipRepository extends JpaRepository<PoolMembership, 
 
     List<PoolMembership> findAllByUserEmailOrderByCreatedAtDesc(String email);
 
+    List<PoolMembership> findAllByPoolIdIn(List<UUID> poolIds);
+
     Optional<PoolMembership> findByPoolIdAndUserId(UUID poolId, UUID userId);
 }

@@ -26,4 +26,27 @@ public class Tournament extends BaseEntity {
 
     protected Tournament() {
     }
+
+    public Tournament(String name, String slug, int seasonYear, TournamentStatus status) {
+        this.name = name;
+        this.slug = slug;
+        this.seasonYear = seasonYear;
+        this.status = status;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public int getSeasonYear() {
+        return seasonYear;
+    }
+
+    public TournamentStatus getStatus() {
+        return status;
+    }
 }

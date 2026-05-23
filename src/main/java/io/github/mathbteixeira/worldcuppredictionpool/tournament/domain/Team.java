@@ -24,4 +24,22 @@ public class Team extends BaseEntity {
 
     protected Team() {
     }
+
+    public Team(Tournament tournament, String name, String fifaCode) {
+        this.tournament = tournament;
+        this.name = name;
+        this.fifaCode = fifaCode;
+    }
+
+    public Tournament getTournament() {
+        return tournament;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getFifaCode() {
+        return fifaCode;
+    }
 }

@@ -40,4 +40,46 @@ public class Match extends BaseEntity {
 
     protected Match() {
     }
+
+    public Match(Tournament tournament,
+                 Team homeTeam,
+                 Team awayTeam,
+                 Instant kickoffAt,
+                 String stage,
+                 MatchStatus status) {
+        this.tournament = tournament;
+        this.homeTeam = homeTeam;
+        this.awayTeam = awayTeam;
+        this.kickoffAt = kickoffAt;
+        this.stage = stage;
+        this.status = status;
+    }
+
+    public Tournament getTournament() {
+        return tournament;
+    }
+
+    public Team getHomeTeam() {
+        return homeTeam;
+    }
+
+    public Team getAwayTeam() {
+        return awayTeam;
+    }
+
+    public Instant getKickoffAt() {
+        return kickoffAt;
+    }
+
+    public String getStage() {
+        return stage;
+    }
+
+    public MatchStatus getStatus() {
+        return status;
+    }
+
+    public boolean canAcceptPredictionsAt(Instant now) {
+        return now.isBefore(kickoffAt);
+    }
 }

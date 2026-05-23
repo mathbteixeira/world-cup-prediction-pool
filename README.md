@@ -1,142 +1,267 @@
-# world-cup-prediction-pool
+# World Cup Prediction Pool — Backend Engineering Showcase
 
-World Cup prediction pool backend built with Java 21, Spring Boot 3, PostgreSQL, Flyway, Spring Security with JWT, Docker Compose, OpenAPI, JUnit, and Testcontainers.
+A production-style backend system built with **Java 21** and **Spring Boot 3** to demonstrate senior-level backend engineering judgment: domain modeling, deterministic scoring, idempotent recalculation, auditability, and transactional consistency.
 
-## Proposed architecture
+## Why this project exists
 
-Use a modular monolith with clean boundaries by business capability. Keep HTTP, application services, and persistence adapters thin, while the domain model owns invariants such as prediction deadlines, scoring auditability, and pool membership rules.
+This is intentionally **not** a toy CRUD app. The core challenge is domain correctness under change:
 
-### Package layout
+- predictions close at kickoff
+- scores are explainable and reproducible
+- recalculation is safe when official results change
+- leaderboard state is derived consistently from auditable events
 
-```text
-io.github.mathbteixeira.worldcuppredictionpool
-├── auth
-│   ├── api
-│   └── application
-├── common
-│   └── model
-├── config
-├── pool
-│   ├── api
-│   ├── application
-│   ├── domain
-│   └── persistence
-├── prediction
-│   └── domain
-├── scoring
-│   └── domain
-├── tournament
-│   └── domain
-└── user
-    ├── domain
-    └── persistence
+## Tech stack
+
+- Java 21
+- Spring Boot 3
+- Spring Data JPA / Hibernate
+- Spring Security + JWT
+- PostgreSQL
+- Flyway migrations
+- OpenAPI / Swagger UI
+- JUnit 5 + Testcontainers
+- Docker Compose
+- CI-friendly test setup (Maven + Testcontainers)
+
+---
+
+## Domain model
+
+### Aggregate boundaries
+
+- **User aggregate** (`UserAccount`)
+  - identity, role, account state
+- **Tournament aggregate** (`Tournament`, `Team`, `Match`, `MatchResult`)
+  - official competition data and result lifecycle
+- **Pool aggregate** (`PredictionPool`, `PoolMembership`)
+  - membership and ownership boundaries
+- **Prediction aggregate** (`Prediction`)
+  - one prediction per user/pool/match
+- **Scoring aggregate**
+  - mutable rule config (`ScoringRule`)
+  - immutable audit events (`ScoreEvent`)
+  - mutable projections (`PredictionCurrentScore`, `LeaderboardEntry`)
+
+### Invariants
+
+- one prediction per `(pool, match, user)`
+- prediction submission/update allowed only **before kickoff**
+- score events are immutable and append-only per `(prediction, resultChecksum)`
+- replaying the same result is idempotent (no duplicated points)
+- leaderboard totals are rebuilt from current per-prediction scores inside one transaction
+
+### Mutability design
+
+- **Immutable by intent**: `ScoreEvent`
+- **Mutable by business lifecycle**: `MatchResult`, `Prediction` (until kickoff), `ScoringRule` activation
+- **Mutable projections**: `PredictionCurrentScore`, `LeaderboardEntry`
+
+This split allows auditing and deterministic recomputation without sacrificing query efficiency.
+
+---
+
+## Java entity sketches (design view)
+
+```java
+@Entity
+class Match {
+  UUID id;
+  Tournament tournament;
+  Team homeTeam;
+  Team awayTeam;
+  Instant kickoffAt;
+
+  boolean canAcceptPredictionsAt(Instant now) {
+    return now.isBefore(kickoffAt);
+  }
+}
 ```
 
-### Aggregates and boundaries
+```java
+@Entity
+class Prediction {
+  UUID id;
+  PredictionPool pool;
+  Match match;
+  UserAccount user;
+  int predictedHomeScore;
+  int predictedAwayScore;
+  Instant submittedAt;
 
-- **User** aggregate: identity, credentials, role, and account status.
-- **PredictionPool** aggregate: pool metadata, invite code, and membership rules. `PoolMembership` belongs to this consistency boundary.
-- **Tournament** aggregate: tournament metadata, participating teams, scheduled matches, and official results.
-- **Prediction** aggregate: a user prediction for one match within one pool. Invariants: one prediction per user/pool/match and submission only before kickoff.
-- **ScoringRuleSet** aggregate: point rules versioned per tournament or competition configuration.
-- **ScoreEntry** aggregate: immutable audit ledger for awarded points, tied back to prediction, match, and rule version.
+  void resubmit(int home, int away, Instant submittedAt) { ... }
+}
+```
 
-### Main domain entities
+```java
+@Entity
+class ScoreEvent {
+  UUID id;
+  Prediction prediction;
+  Match match;
+  PredictionPool pool;
+  UserAccount user;
+  int pointsAwarded;
+  int exactScorePointsAwarded;
+  int outcomePointsAwarded;
+  int goalDifferenceBonusPointsAwarded;
+  int ruleVersion;
+  String resultChecksum;
+  Instant calculatedAt;
+}
+```
 
-- `UserAccount`
-- `PredictionPool`
-- `PoolMembership`
-- `Tournament`
-- `Team`
-- `Match`
-- `MatchResult`
-- `Prediction`
-- `ScoringRuleSet`
-- `ScoreEntry`
+```java
+@Entity
+class LeaderboardEntry {
+  UUID id;
+  PredictionPool pool;
+  UserAccount user;
+  int totalPoints;
+  int rankPosition;
+  Instant recalculatedAt;
+}
+```
 
-### Database tables
+---
 
-| Table | Purpose |
-| --- | --- |
-| `user_accounts` | Application users, credentials, and roles |
-| `prediction_pools` | Pool metadata and invite codes |
-| `pool_memberships` | User membership and role inside a pool |
-| `tournaments` | Tournament lifecycle metadata |
-| `teams` | Teams participating in a tournament |
-| `matches` | Scheduled fixtures and kickoff timestamps |
-| `match_results` | Official final results entered by admins |
-| `predictions` | User predictions scoped by pool and match |
-| `scoring_rule_sets` | Configurable scoring rules |
-| `score_entries` | Immutable scoring ledger for audit/recalculation |
+## Scoring engine
 
-### API surface
+Scoring logic is isolated from controllers/repositories in `scoring.engine`:
 
-#### Auth and identity
+- `PredictionScoringEngine` (interface)
+- `DefaultPredictionScoringEngine` (implementation)
+- `ScoringRuleDefinition` (versioned rule contract)
+- `ScoreBreakdown` (why points were awarded)
+
+### Current rules (v1)
+
+- exact score: **5**
+- correct winner/draw: **3**
+- correct goal difference bonus: **2** (when outcome is correct and exact score is not)
+- wrong prediction: **0**
+- no prediction: **0**
+
+### Example contract
+
+```java
+ScoreBreakdown score(PredictionScoreInput prediction,
+                     MatchScoreInput actualResult,
+                     ScoringRuleDefinition rule)
+```
+
+The output contains total and per-rule components for transparency.
+
+---
+
+## Recalculation flow (result upsert)
+
+Implemented in `MatchResultScoringService` with a transactional boundary:
+
+1. Upsert official `MatchResult`
+2. Build deterministic `resultChecksum`
+3. Resolve active scoring rule version
+4. Score all predictions of that match
+5. Persist immutable `ScoreEvent` records (unique by prediction + checksum)
+6. Upsert `PredictionCurrentScore` projection
+7. Rebuild `LeaderboardEntry` totals/ranking for affected pools
+
+### Idempotency strategy
+
+- Unique constraint on `(prediction_id, result_checksum)` in `score_events`
+- Reprocessing the same result does not create duplicate score events
+- Leaderboard rebuild derives from current projection table, avoiding accumulation bugs
+
+### Auditability strategy
+
+- Every distinct result snapshot produces its own immutable score events
+- You can trace exactly which rule version and result checksum generated each score
+
+---
+
+## API surface (current + target)
+
+### Implemented now
+
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/token`
 - `GET /api/v1/auth/me`
-
-#### Pools
 - `POST /api/v1/pools`
 - `GET /api/v1/pools`
 - `POST /api/v1/pools/{poolId}/join`
-- `GET /api/v1/pools/{poolId}/leaderboard` *(next milestone)*
 
-#### Tournament administration
-- `POST /api/v1/admin/tournaments`
-- `POST /api/v1/admin/tournaments/{tournamentId}/teams`
-- `POST /api/v1/admin/tournaments/{tournamentId}/matches`
-- `PUT /api/v1/admin/matches/{matchId}/result`
-- `PUT /api/v1/admin/tournaments/{tournamentId}/scoring-rules`
+### Domain-ready for next endpoints
 
-#### Predictions and scoring
-- `POST /api/v1/pools/{poolId}/matches/{matchId}/predictions`
-- `GET /api/v1/pools/{poolId}/matches/{matchId}/predictions/me`
-- `POST /api/v1/admin/scoring/recalculate?tournamentId={id}`
-- `GET /api/v1/pools/{poolId}/leaderboard`
-- `GET /api/v1/pools/{poolId}/score-audit?userId={id}`
+- submit/update predictions
+- admin result entry + recalculation trigger
+- leaderboard and score audit endpoints
 
-### Why this structure works
+Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 
-- **Auditability:** scoring is written as immutable `score_entries`, not overwritten totals.
-- **Recalculation:** scores can be recomputed from predictions + official results + rule set version.
-- **Security:** JWT secures user APIs, with admin-only tournament/result endpoints.
-- **Extensibility:** the modular monolith can later split scoring or notifications into separate services if scale demands it.
+---
 
-## First implementation milestones
+## Database & migrations
 
-1. **Foundation**
-   - Spring Boot skeleton, Docker Compose, PostgreSQL, Flyway, JWT, OpenAPI, baseline schema
-   - user registration/login
-   - pool creation/join/list
-2. **Tournament admin**
-   - CRUD for tournaments, teams, matches, and official results
-3. **Predictions**
-   - submit/update predictions before kickoff with invariant checks
-4. **Scoring engine**
-   - configurable scoring rules, immutable score ledger, recalculation endpoint
-5. **Leaderboards and audit**
-   - pool standings, tie-breakers, detailed audit trail
-6. **Hardening**
-   - role-based authorization, idempotency, observability, CI, and broader integration tests
+- Flyway baseline schema (`V1`) + scoring/recalculation schema (`V2`)
+- PostgreSQL-specific constraints/indexes for idempotency and ranking access paths
 
-## What is implemented in this repository now
+---
 
-This repository now contains the milestone-1 foundation:
-- Spring Boot 3 / Java 21 project scaffold
-- PostgreSQL + Flyway baseline schema
-- JWT-based authentication and current-user endpoint
-- pool create/list/join endpoints
-- OpenAPI/Swagger UI configuration
-- focused unit tests plus a Testcontainers-backed repository test scaffold
+## Testing strategy
 
-## Running locally
+- **Unit tests**: scoring engine and deadline enforcement behavior
+- **Integration tests (Testcontainers + PostgreSQL)**:
+  - result upsert
+  - idempotent replay
+  - recalculation after result change
+  - leaderboard rebuild behavior
+
+Run tests:
+
+```bash
+export JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64
+export PATH="$JAVA_HOME/bin:$PATH"
+mvn test
+```
+
+---
+
+## Local run
 
 ```bash
 docker compose up -d postgres
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64
 export PATH="$JAVA_HOME/bin:$PATH"
 mvn spring-boot:run
 ```
 
-Swagger UI is available at `http://localhost:8080/swagger-ui/index.html`.
+---
+
+## Tradeoffs and future improvements
+
+### Current tradeoffs
+
+- leaderboard rebuild is deterministic and safe, but recomputes per affected pool (simple and reliable over micro-optimized)
+- idempotency is implemented at DB constraint + application orchestration level
+- rule versioning supports evolution but currently ships with v1 default fallback
+
+### Planned improvements
+
+- admin APIs for tournament/match/rule lifecycle
+- asynchronous recalculation option for very large pools
+- richer audit query APIs (per user/per match/per checksum)
+- explicit CI workflow with build/test/security gates and branch protections
+- observability hardening: metrics, tracing, structured audit logs
+
+---
+
+## Portfolio signal
+
+This project demonstrates backend competencies expected in international Senior Backend Engineer roles:
+
+- domain-driven aggregate thinking
+- consistency over convenience
+- idempotent event recording
+- deterministic recalculation under mutable external truth (official results)
+- practical transaction design with PostgreSQL + Spring
+- test strategy that exercises real infrastructure, not just mocks

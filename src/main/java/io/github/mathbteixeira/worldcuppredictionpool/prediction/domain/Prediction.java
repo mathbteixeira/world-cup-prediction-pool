@@ -40,4 +40,48 @@ public class Prediction extends BaseEntity {
 
     protected Prediction() {
     }
+
+    public Prediction(PredictionPool pool,
+                      Match match,
+                      UserAccount user,
+                      int predictedHomeScore,
+                      int predictedAwayScore,
+                      Instant submittedAt) {
+        this.pool = pool;
+        this.match = match;
+        this.user = user;
+        this.predictedHomeScore = predictedHomeScore;
+        this.predictedAwayScore = predictedAwayScore;
+        this.submittedAt = submittedAt;
+    }
+
+    public void resubmit(int predictedHomeScore, int predictedAwayScore, Instant submittedAt) {
+        this.predictedHomeScore = predictedHomeScore;
+        this.predictedAwayScore = predictedAwayScore;
+        this.submittedAt = submittedAt;
+    }
+
+    public PredictionPool getPool() {
+        return pool;
+    }
+
+    public Match getMatch() {
+        return match;
+    }
+
+    public UserAccount getUser() {
+        return user;
+    }
+
+    public int getPredictedHomeScore() {
+        return predictedHomeScore;
+    }
+
+    public int getPredictedAwayScore() {
+        return predictedAwayScore;
+    }
+
+    public Instant getSubmittedAt() {
+        return submittedAt;
+    }
 }
