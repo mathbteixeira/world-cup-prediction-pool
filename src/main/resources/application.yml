@@ -1,6 +1,8 @@
 spring:
   application:
     name: world-cup-prediction-pool
+  profiles:
+    default: local
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/prediction_pool}
     username: ${DB_USERNAME:app}
@@ -24,7 +26,7 @@ management:
 app:
   jwt:
     issuer: world-cup-prediction-pool
-    secret: ${APP_JWT_SECRET:U3ByaW5nQm9vdDMtV29ybGRDdXAtUHJlZGljdGlvblBvb2wtRGV2U2VjcmV0LTI1Ni1CaXQ=}
+    secret: ${APP_JWT_SECRET}
     access-token-ttl: PT2H
 springdoc:
   swagger-ui:

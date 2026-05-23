@@ -7,6 +7,9 @@ import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tournament;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.TournamentStatus;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TournamentRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserRole;
 import io.github.mathbteixeira.worldcuppredictionpool.user.persistence.UserAccountRepository;
@@ -40,17 +43,26 @@ class PoolServiceTest {
     @Mock
     private UserAccountRepository userAccountRepository;
 
+    @Mock
+    private TournamentRepository tournamentRepository;
+
     @InjectMocks
     private PoolService poolService;
 
     @Test
     void shouldCreatePoolAndRegisterOwnerMembership() {
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", 2026, TournamentStatus.OPEN);
+        UUID tournamentId = UUID.randomUUID();
         UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
         when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(owner));
+        when(tournamentRepository.findById(tournamentId)).thenReturn(Optional.of(tournament));
         when(predictionPoolRepository.save(any(PredictionPool.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(poolMembershipRepository.save(any(PoolMembership.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        PoolSummaryResponse response = poolService.createPool(new CreatePoolRequest("Office Pool", "Qatar 2026"), "ana@example.com");
+        PoolSummaryResponse response = poolService.createPool(
+                new CreatePoolRequest("Office Pool", "Qatar 2026", tournamentId),
+                "ana@example.com"
+        );
 
         assertThat(response.name()).isEqualTo("Office Pool");
         assertThat(response.membershipRole()).isEqualTo("OWNER");
@@ -63,8 +75,9 @@ class PoolServiceTest {
 
     @Test
     void shouldRejectInvalidInviteCodeBeforeLoadingUser() {
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", 2026, TournamentStatus.OPEN);
         UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
-        PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner);
+        PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
         UUID poolId = UUID.randomUUID();
         when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
 

@@ -4,6 +4,7 @@ import java.util.UUID;
 
 public record PoolSummaryResponse(
         UUID id,
+        UUID tournamentId,
         String name,
         String description,
         String inviteCode,

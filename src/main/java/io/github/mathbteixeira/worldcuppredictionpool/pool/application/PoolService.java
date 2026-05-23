@@ -7,6 +7,8 @@ import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tournament;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TournamentRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import io.github.mathbteixeira.worldcuppredictionpool.user.persistence.UserAccountRepository;
 import org.springframework.http.HttpStatus;
@@ -23,24 +25,30 @@ public class PoolService {
 
     private final PredictionPoolRepository predictionPoolRepository;
     private final PoolMembershipRepository poolMembershipRepository;
+    private final TournamentRepository tournamentRepository;
     private final UserAccountRepository userAccountRepository;
 
     public PoolService(PredictionPoolRepository predictionPoolRepository,
                        PoolMembershipRepository poolMembershipRepository,
+                       TournamentRepository tournamentRepository,
                        UserAccountRepository userAccountRepository) {
         this.predictionPoolRepository = predictionPoolRepository;
         this.poolMembershipRepository = poolMembershipRepository;
+        this.tournamentRepository = tournamentRepository;
         this.userAccountRepository = userAccountRepository;
     }
 
     @Transactional
     public PoolSummaryResponse createPool(CreatePoolRequest request, String email) {
         UserAccount owner = getUserByEmail(email);
+        Tournament tournament = tournamentRepository.findById(request.tournamentId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tournament not found"));
         PredictionPool pool = predictionPoolRepository.save(new PredictionPool(
                 request.name().trim(),
                 request.description() == null ? null : request.description().trim(),
                 generateInviteCode(),
-                owner
+                owner,
+                tournament
         ));
         poolMembershipRepository.save(new PoolMembership(pool, owner, PoolRole.OWNER));
         return toResponse(pool, PoolRole.OWNER);
@@ -77,7 +85,14 @@ public class PoolService {
     }
 
     private PoolSummaryResponse toResponse(PredictionPool pool, PoolRole poolRole) {
-        return new PoolSummaryResponse(pool.getId(), pool.getName(), pool.getDescription(), pool.getInviteCode(), poolRole.name());
+        return new PoolSummaryResponse(
+                pool.getId(),
+                pool.getTournament().getId(),
+                pool.getName(),
+                pool.getDescription(),
+                pool.getInviteCode(),
+                poolRole.name()
+        );
     }
 
     private String generateInviteCode() {

@@ -1,6 +1,7 @@
 package io.github.mathbteixeira.worldcuppredictionpool.prediction;
 
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.PredictionSubmissionService;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.SubmitPredictionCommand;
@@ -42,6 +43,9 @@ class PredictionSubmissionServiceTest {
     private PredictionPoolRepository predictionPoolRepository;
 
     @Mock
+    private PoolMembershipRepository poolMembershipRepository;
+
+    @Mock
     private MatchRepository matchRepository;
 
     @Mock
@@ -54,6 +58,7 @@ class PredictionSubmissionServiceTest {
         predictionSubmissionService = new PredictionSubmissionService(
                 predictionRepository,
                 predictionPoolRepository,
+                poolMembershipRepository,
                 matchRepository,
                 userAccountRepository,
                 Clock.fixed(Instant.parse("2026-06-01T12:00:00Z"), ZoneOffset.UTC));
@@ -62,8 +67,8 @@ class PredictionSubmissionServiceTest {
     @Test
     void shouldRejectPredictionAfterKickoff() {
         UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
-        PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner);
         Tournament tournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
+        PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, tournament);
         Team home = new Team(tournament, "Brazil", "BRA");
         Team away = new Team(tournament, "Spain", "ESP");
         Match startedMatch = new Match(
@@ -79,6 +84,70 @@ class PredictionSubmissionServiceTest {
         UUID matchId = UUID.randomUUID();
         when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(startedMatch));
+
+        assertThatThrownBy(() -> predictionSubmissionService.submit(
+                new SubmitPredictionCommand(poolId, matchId, "owner@example.com", 1, 0)))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> {
+                    ResponseStatusException exception = (ResponseStatusException) error;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                });
+    }
+
+    @Test
+    void shouldRejectPredictionWhenUserIsNotPoolMember() {
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
+        Tournament tournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
+        PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, tournament);
+        Team home = new Team(tournament, "Brazil", "BRA");
+        Team away = new Team(tournament, "Spain", "ESP");
+        Match futureMatch = new Match(
+                tournament,
+                home,
+                away,
+                Instant.parse("2026-06-01T13:00:00Z"),
+                "GROUP",
+                MatchStatus.SCHEDULED
+        );
+
+        UUID poolId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(futureMatch));
+        when(userAccountRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(owner));
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> predictionSubmissionService.submit(
+                new SubmitPredictionCommand(poolId, matchId, "owner@example.com", 1, 0)))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> {
+                    ResponseStatusException exception = (ResponseStatusException) error;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                });
+    }
+
+    @Test
+    void shouldRejectPredictionWhenMatchTournamentDiffersFromPoolTournament() {
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
+        Tournament poolTournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
+        Tournament otherTournament = new Tournament("Euro", "euro-2028", 2028, TournamentStatus.OPEN);
+        PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, poolTournament);
+        Team home = new Team(otherTournament, "Italy", "ITA");
+        Team away = new Team(otherTournament, "France", "FRA");
+        Match futureMatch = new Match(
+                otherTournament,
+                home,
+                away,
+                Instant.parse("2026-06-01T13:00:00Z"),
+                "GROUP",
+                MatchStatus.SCHEDULED
+        );
+
+        UUID poolId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(futureMatch));
 
         assertThatThrownBy(() -> predictionSubmissionService.submit(
                 new SubmitPredictionCommand(poolId, matchId, "owner@example.com", 1, 0)))

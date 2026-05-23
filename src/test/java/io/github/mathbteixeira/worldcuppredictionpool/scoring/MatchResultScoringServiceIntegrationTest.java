@@ -114,7 +114,7 @@ class MatchResultScoringServiceIntegrationTest {
                 MatchStatus.SCHEDULED
         ));
 
-        PredictionPool pool = predictionPoolRepository.save(new PredictionPool("Office", "A", "INVITE01", owner));
+        PredictionPool pool = predictionPoolRepository.save(new PredictionPool("Office", "A", "INVITE01", owner, tournament));
         poolMembershipRepository.save(new PoolMembership(pool, owner, PoolRole.OWNER));
         poolMembershipRepository.save(new PoolMembership(pool, guest, PoolRole.MEMBER));
 

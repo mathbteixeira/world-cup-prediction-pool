@@ -1,6 +1,7 @@
 package io.github.mathbteixeira.worldcuppredictionpool.pool.domain;
 
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tournament;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -26,14 +27,19 @@ public class PredictionPool extends BaseEntity {
     @JoinColumn(name = "owner_id", nullable = false)
     private UserAccount owner;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "tournament_id", nullable = false)
+    private Tournament tournament;
+
     protected PredictionPool() {
     }
 
-    public PredictionPool(String name, String description, String inviteCode, UserAccount owner) {
+    public PredictionPool(String name, String description, String inviteCode, UserAccount owner, Tournament tournament) {
         this.name = name;
         this.description = description;
         this.inviteCode = inviteCode;
         this.owner = owner;
+        this.tournament = tournament;
     }
 
     public String getName() {
@@ -50,5 +56,9 @@ public class PredictionPool extends BaseEntity {
 
     public UserAccount getOwner() {
         return owner;
+    }
+
+    public Tournament getTournament() {
+        return tournament;
     }
 }

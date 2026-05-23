@@ -21,6 +21,7 @@ import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.MatchRes
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchResultRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -124,7 +126,7 @@ public class MatchResultScoringService {
             );
             ScoreBreakdown breakdown = predictionScoringEngine.score(predicted, actual, rule);
 
-            if (!scoreEventRepository.existsByPredictionIdAndResultChecksum(prediction.getId(), checksum)) {
+            try {
                 scoreEventRepository.save(new ScoreEvent(
                         prediction.getPool(),
                         prediction.getUser(),
@@ -140,6 +142,8 @@ public class MatchResultScoringService {
                         now
                 ));
                 insertedEvents++;
+            } catch (DataIntegrityViolationException ignored) {
+                // concurrent replay for same prediction + checksum; immutable event already recorded
             }
 
             predictionCurrentScoreRepository.findByPredictionId(prediction.getId())
@@ -180,8 +184,12 @@ public class MatchResultScoringService {
         leaderboardEntryRepository.deleteByPoolIdIn(poolIds);
 
         List<PoolMembership> memberships = poolMembershipRepository.findAllByPoolIdIn(poolIds);
+        Map<UUID, PredictionPool> poolsById = new HashMap<>();
+        Map<UUID, UserAccount> usersById = new HashMap<>();
         Map<UUID, Map<UUID, Integer>> totalsByPoolAndUser = new LinkedHashMap<>();
         for (PoolMembership membership : memberships) {
+            poolsById.putIfAbsent(membership.getPool().getId(), membership.getPool());
+            usersById.putIfAbsent(membership.getUser().getId(), membership.getUser());
             totalsByPoolAndUser
                     .computeIfAbsent(membership.getPool().getId(), ignored -> new LinkedHashMap<>())
                     .putIfAbsent(membership.getUser().getId(), 0);
@@ -210,16 +218,8 @@ public class MatchResultScoringService {
                 }
                 previousTotal = userTotal.getValue();
 
-                PredictionPool poolReference = memberships.stream()
-                        .filter(m -> m.getPool().getId().equals(poolEntry.getKey()))
-                        .findFirst()
-                        .orElseThrow()
-                        .getPool();
-                UserAccount userReference = memberships.stream()
-                        .filter(m -> m.getUser().getId().equals(userTotal.getKey()))
-                        .findFirst()
-                        .orElseThrow()
-                        .getUser();
+                PredictionPool poolReference = poolsById.get(poolEntry.getKey());
+                UserAccount userReference = usersById.get(userTotal.getKey());
 
                 rebuilt.add(new LeaderboardEntry(poolReference, userReference, userTotal.getValue(), rank, now));
             }
