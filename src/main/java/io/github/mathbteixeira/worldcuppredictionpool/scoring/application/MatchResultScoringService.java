@@ -7,7 +7,6 @@ import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Predicti
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.persistence.PredictionRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.domain.LeaderboardEntry;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.domain.PredictionCurrentScore;
-import io.github.mathbteixeira.worldcuppredictionpool.scoring.domain.ScoreEvent;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.engine.MatchScoreInput;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.engine.PredictionScoreInput;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.engine.PredictionScoringEngine;
@@ -124,23 +123,23 @@ public class MatchResultScoringService {
             );
             ScoreBreakdown breakdown = predictionScoringEngine.score(predicted, actual, rule);
 
-            if (!scoreEventRepository.existsByPredictionIdAndResultChecksum(prediction.getId(), checksum)) {
-                scoreEventRepository.save(new ScoreEvent(
-                        prediction.getPool(),
-                        prediction.getUser(),
-                        prediction.getMatch(),
-                        prediction,
-                        breakdown.totalPoints(),
-                        breakdown.exactScorePointsAwarded(),
-                        breakdown.outcomePointsAwarded(),
-                        breakdown.goalDifferenceBonusPointsAwarded(),
-                        breakdown.explanation(),
-                        rule.version(),
-                        checksum,
-                        now
-                ));
-                insertedEvents++;
-            }
+            insertedEvents += scoreEventRepository.insertIgnoreConflict(
+                    UUID.randomUUID(),
+                    now,
+                    now,
+                    prediction.getPool().getId(),
+                    prediction.getUser().getId(),
+                    prediction.getMatch().getId(),
+                    prediction.getId(),
+                    breakdown.totalPoints(),
+                    breakdown.exactScorePointsAwarded(),
+                    breakdown.outcomePointsAwarded(),
+                    breakdown.goalDifferenceBonusPointsAwarded(),
+                    breakdown.explanation(),
+                    rule.version(),
+                    checksum,
+                    now
+            );
 
             predictionCurrentScoreRepository.findByPredictionId(prediction.getId())
                     .map(existing -> {

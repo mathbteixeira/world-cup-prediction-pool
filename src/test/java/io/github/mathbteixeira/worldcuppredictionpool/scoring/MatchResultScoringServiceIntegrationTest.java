@@ -125,6 +125,54 @@ class MatchResultScoringServiceIntegrationTest {
         this.poolId = pool.getId();
     }
 
+
+    @Test
+    void shouldIgnoreDuplicateScoreEventInsertOnConflict() {
+        Prediction prediction = predictionRepository.findAll().get(0);
+        Instant now = Instant.parse("2026-06-10T21:00:00Z");
+        String checksum = "race-checksum";
+
+        int firstInsert = scoreEventRepository.insertIgnoreConflict(
+                UUID.randomUUID(),
+                now,
+                now,
+                prediction.getPool().getId(),
+                prediction.getUser().getId(),
+                prediction.getMatch().getId(),
+                prediction.getId(),
+                5,
+                5,
+                0,
+                0,
+                "exact score",
+                1,
+                checksum,
+                now
+        );
+
+        int secondInsert = scoreEventRepository.insertIgnoreConflict(
+                UUID.randomUUID(),
+                now,
+                now,
+                prediction.getPool().getId(),
+                prediction.getUser().getId(),
+                prediction.getMatch().getId(),
+                prediction.getId(),
+                3,
+                0,
+                3,
+                0,
+                "outcome",
+                1,
+                checksum,
+                now
+        );
+
+        assertThat(firstInsert).isEqualTo(1);
+        assertThat(secondInsert).isEqualTo(0);
+        assertThat(scoreEventRepository.count()).isEqualTo(1);
+    }
+
     @Test
     void shouldBeIdempotentAndRecalculateWhenResultChanges() {
         RecalculationResult first = matchResultScoringService.upsertResultAndRecalculate(
