@@ -1,13 +1,3 @@
-alter table prediction_pools
-    add column if not exists tournament_id uuid;
-
-alter table prediction_pools
-    drop constraint if exists fk_prediction_pool_tournament;
-
-alter table prediction_pools
-    add constraint fk_prediction_pool_tournament
-    foreign key (tournament_id) references tournaments(id);
-
 alter table match_results
     add column if not exists result_checksum varchar(120) not null default 'legacy';
 
