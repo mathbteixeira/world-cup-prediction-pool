@@ -1,5 +1,6 @@
 package io.github.mathbteixeira.worldcuppredictionpool.prediction;
 
+import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
@@ -26,6 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.lang.reflect.Field;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -68,6 +70,8 @@ class PredictionSubmissionServiceTest {
     void shouldRejectPredictionAfterKickoff() {
         UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
         Tournament tournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
+        setId(owner, UUID.randomUUID());
+        setId(tournament, UUID.randomUUID());
         PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, tournament);
         Team home = new Team(tournament, "Brazil", "BRA");
         Team away = new Team(tournament, "Spain", "ESP");
@@ -98,6 +102,8 @@ class PredictionSubmissionServiceTest {
     void shouldRejectPredictionWhenUserIsNotPoolMember() {
         UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
         Tournament tournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
+        setId(owner, UUID.randomUUID());
+        setId(tournament, UUID.randomUUID());
         PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, tournament);
         Team home = new Team(tournament, "Brazil", "BRA");
         Team away = new Team(tournament, "Spain", "ESP");
@@ -131,6 +137,8 @@ class PredictionSubmissionServiceTest {
         UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
         Tournament poolTournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
         Tournament otherTournament = new Tournament("Euro", "euro-2028", 2028, TournamentStatus.OPEN);
+        setId(poolTournament, UUID.randomUUID());
+        setId(otherTournament, UUID.randomUUID());
         PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, poolTournament);
         Team home = new Team(otherTournament, "Italy", "ITA");
         Team away = new Team(otherTournament, "France", "FRA");
@@ -155,5 +163,15 @@ class PredictionSubmissionServiceTest {
                     ResponseStatusException exception = (ResponseStatusException) error;
                     assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
                 });
+    }
+
+    private static void setId(BaseEntity entity, UUID id) {
+        try {
+            Field field = BaseEntity.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(entity, id);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }
