@@ -112,11 +112,10 @@ class PredictionSubmissionServiceTest {
 
         UUID poolId = UUID.randomUUID();
         UUID matchId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
         when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(futureMatch));
         when(userAccountRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(owner));
-        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, userId)).thenReturn(Optional.empty());
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, owner.getId())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> predictionSubmissionService.submit(
                 new SubmitPredictionCommand(poolId, matchId, "owner@example.com", 1, 0)))

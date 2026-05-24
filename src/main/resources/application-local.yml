@@ -1,3 +1,0 @@
-app:
-  jwt:
-    secret: ${APP_JWT_SECRET:U3ByaW5nQm9vdDMtV29ybGRDdXAtUHJlZGljdGlvblBvb2wtRGV2U2VjcmV0LTI1Ni1CaXQ=}

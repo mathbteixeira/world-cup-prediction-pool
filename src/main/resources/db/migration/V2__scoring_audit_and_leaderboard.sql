@@ -1,6 +1,3 @@
-drop table if exists score_entries;
-drop table if exists scoring_rule_sets;
-
 alter table prediction_pools
     add column if not exists tournament_id uuid;
 
