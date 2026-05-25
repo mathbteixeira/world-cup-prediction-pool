@@ -1,9 +1,8 @@
 package io.github.mathbteixeira.worldcuppredictionpool.prediction;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PredictionController;
-import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PredictionResponse;
-import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.SubmitPredictionRequest;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.PredictionSubmissionService;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.SubmitPredictionCommand;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
@@ -15,39 +14,150 @@ import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tourname
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.TournamentStatus;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserRole;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(PredictionController.class)
 class PredictionControllerTest {
 
-    @Mock
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockBean
     private PredictionSubmissionService predictionSubmissionService;
 
-    @InjectMocks
-    private PredictionController predictionController;
+    private UUID poolId;
+    private UUID matchId;
+    private UUID predictionId;
+    private Instant submittedAt;
+    private Prediction prediction;
+
+    @BeforeEach
+    void setUp() {
+        poolId = UUID.randomUUID();
+        matchId = UUID.randomUUID();
+        predictionId = UUID.randomUUID();
+        submittedAt = Instant.parse("2026-06-01T10:00:00Z");
+        prediction = buildPrediction(poolId, matchId, predictionId, submittedAt, 2, 1);
+    }
 
     @Test
-    void shouldUseAuthenticatedEmailAndMapResponse() {
-        UUID poolId = UUID.randomUUID();
-        UUID matchId = UUID.randomUUID();
-        UUID predictionId = UUID.randomUUID();
-        Instant submittedAt = Instant.parse("2026-06-01T10:00:00Z");
+    void shouldReturn200WithPredictionPayloadForAuthenticatedRequest() throws Exception {
+        when(predictionSubmissionService.submit(any())).thenReturn(prediction);
 
+        mockMvc.perform(put(endpoint())
+                        .with(user("alice@example.com"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("homeScore", 2, "awayScore", 1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.predictionId").value(predictionId.toString()))
+                .andExpect(jsonPath("$.poolId").value(poolId.toString()))
+                .andExpect(jsonPath("$.matchId").value(matchId.toString()))
+                .andExpect(jsonPath("$.homeScore").value(2))
+                .andExpect(jsonPath("$.awayScore").value(1))
+                .andExpect(jsonPath("$.submittedAt").value(submittedAt.toString()));
+    }
+
+    @Test
+    void shouldUseAuthenticatedPrincipalEmailAndIgnoreBodyUserField() throws Exception {
+        when(predictionSubmissionService.submit(any())).thenReturn(prediction);
+
+        mockMvc.perform(put(endpoint())
+                        .with(user("alice@example.com"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "homeScore", 2,
+                                "awayScore", 1,
+                                "userEmail", "malicious@example.com"
+                        ))))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<SubmitPredictionCommand> commandCaptor = ArgumentCaptor.forClass(SubmitPredictionCommand.class);
+        verify(predictionSubmissionService).submit(commandCaptor.capture());
+        assertThat(commandCaptor.getValue().userEmail()).isEqualTo("alice@example.com");
+    }
+
+    @Test
+    void shouldReturn400WhenHomeScoreIsMissing() throws Exception {
+        mockMvc.perform(put(endpoint())
+                        .with(user("alice@example.com"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("awayScore", 1))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldReturn400WhenAwayScoreIsMissing() throws Exception {
+        mockMvc.perform(put(endpoint())
+                        .with(user("alice@example.com"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("homeScore", 2))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldReturn400WhenScoreIsNegative() throws Exception {
+        mockMvc.perform(put(endpoint())
+                        .with(user("alice@example.com"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("homeScore", -1, "awayScore", 1))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(put(endpoint())
+                        .with(user("alice@example.com"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("homeScore", 1, "awayScore", -1))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldRejectUnauthenticatedRequest() throws Exception {
+        int status = mockMvc.perform(put(endpoint())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("homeScore", 2, "awayScore", 1))))
+                .andReturn()
+                .getResponse()
+                .getStatus();
+
+        assertThat(status).isIn(401, 403);
+    }
+
+    private String endpoint() {
+        return "/api/v1/pools/" + poolId + "/matches/" + matchId + "/prediction";
+    }
+
+    private static Prediction buildPrediction(UUID poolId, UUID matchId, UUID predictionId, Instant submittedAt, int homeScore, int awayScore) {
         UserAccount user = new UserAccount("alice", "alice@example.com", "hash", UserRole.USER);
         Tournament tournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
         setId(tournament, UUID.randomUUID());
@@ -64,34 +174,9 @@ class PredictionControllerTest {
                 MatchStatus.SCHEDULED
         );
         setId(match, matchId);
-        Prediction prediction = new Prediction(pool, match, user, 2, 1, submittedAt);
+        Prediction prediction = new Prediction(pool, match, user, homeScore, awayScore, submittedAt);
         setId(prediction, predictionId);
-
-        when(predictionSubmissionService.submit(org.mockito.ArgumentMatchers.any())).thenReturn(prediction);
-
-        Authentication authentication = new UsernamePasswordAuthenticationToken("alice@example.com", null);
-        PredictionResponse response = predictionController.submitOrUpdate(
-                poolId,
-                matchId,
-                new SubmitPredictionRequest(2, 1),
-                authentication
-        );
-
-        ArgumentCaptor<SubmitPredictionCommand> commandCaptor = ArgumentCaptor.forClass(SubmitPredictionCommand.class);
-        verify(predictionSubmissionService).submit(commandCaptor.capture());
-        SubmitPredictionCommand command = commandCaptor.getValue();
-        assertThat(command.poolId()).isEqualTo(poolId);
-        assertThat(command.matchId()).isEqualTo(matchId);
-        assertThat(command.userEmail()).isEqualTo("alice@example.com");
-        assertThat(command.homeScore()).isEqualTo(2);
-        assertThat(command.awayScore()).isEqualTo(1);
-
-        assertThat(response.predictionId()).isEqualTo(predictionId);
-        assertThat(response.poolId()).isEqualTo(poolId);
-        assertThat(response.matchId()).isEqualTo(matchId);
-        assertThat(response.homeScore()).isEqualTo(2);
-        assertThat(response.awayScore()).isEqualTo(1);
-        assertThat(response.submittedAt()).isEqualTo(submittedAt);
+        return prediction;
     }
 
     private static void setId(BaseEntity entity, UUID id) {
