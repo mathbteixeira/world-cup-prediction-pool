@@ -179,9 +179,7 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 
 ---
 
-## API surface (current + target)
-
-### Implemented now
+## API surface (MVP implemented)
 
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/token`
@@ -189,14 +187,218 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `POST /api/v1/pools`
 - `GET /api/v1/pools`
 - `POST /api/v1/pools/{poolId}/join`
-
-### Domain-ready for next endpoints
-
-- submit/update predictions
-- admin result entry + recalculation trigger
-- leaderboard and score audit endpoints
+- `PUT /api/v1/pools/{poolId}/matches/{matchId}/prediction`
+- `PUT /api/v1/admin/matches/{matchId}/result`
+- `GET /api/v1/pools/{poolId}/leaderboard`
 
 Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+
+---
+
+## MVP happy path
+
+Set base URL:
+
+```bash
+BASE_URL=http://localhost:8080
+```
+
+### 1) Register user
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "alice",
+    "email": "alice@example.com",
+    "password": "StrongPass123!"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "tokenType": "Bearer",
+  "username": "alice",
+  "email": "alice@example.com",
+  "role": "USER"
+}
+```
+
+### 2) Get token
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/auth/token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alice@example.com",
+    "password": "StrongPass123!"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "tokenType": "Bearer",
+  "username": "alice",
+  "email": "alice@example.com",
+  "role": "USER"
+}
+```
+
+Use the token:
+
+```bash
+TOKEN="<jwt-token>"
+```
+
+### 3) Create pool
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/pools" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Office Pool",
+    "description": "MVP pool",
+    "tournamentId": "11111111-1111-1111-1111-111111111111"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "id": "22222222-2222-2222-2222-222222222222",
+  "tournamentId": "11111111-1111-1111-1111-111111111111",
+  "name": "Office Pool",
+  "description": "MVP pool",
+  "inviteCode": "ABCD1234",
+  "membershipRole": "OWNER"
+}
+```
+
+### 4) Join pool
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/pools/22222222-2222-2222-2222-222222222222/join" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inviteCode": "ABCD1234"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "id": "22222222-2222-2222-2222-222222222222",
+  "tournamentId": "11111111-1111-1111-1111-111111111111",
+  "name": "Office Pool",
+  "description": "MVP pool",
+  "inviteCode": "ABCD1234",
+  "membershipRole": "MEMBER"
+}
+```
+
+### 5) Submit prediction
+
+```bash
+curl -sS -X PUT "$BASE_URL/api/v1/pools/22222222-2222-2222-2222-222222222222/matches/33333333-3333-3333-3333-333333333333/prediction" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "homeScore": 2,
+    "awayScore": 1
+  }'
+```
+
+Example response:
+
+```json
+{
+  "predictionId": "44444444-4444-4444-4444-444444444444",
+  "poolId": "22222222-2222-2222-2222-222222222222",
+  "matchId": "33333333-3333-3333-3333-333333333333",
+  "homeScore": 2,
+  "awayScore": 1,
+  "submittedAt": "2026-06-01T10:00:00Z"
+}
+```
+
+### 6) Admin upserts match result (triggers recalculation)
+
+```bash
+curl -sS -X PUT "$BASE_URL/api/v1/admin/matches/33333333-3333-3333-3333-333333333333/result" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "homeScore": 2,
+    "awayScore": 1,
+    "homePenaltyScore": null,
+    "awayPenaltyScore": null,
+    "finalResult": true
+  }'
+```
+
+Example response:
+
+```json
+{
+  "matchId": "33333333-3333-3333-3333-333333333333",
+  "homeScore": 2,
+  "awayScore": 1,
+  "homePenaltyScore": null,
+  "awayPenaltyScore": null,
+  "finalResult": true,
+  "resultChecksum": "ab12cd34...",
+  "scoredPredictions": 5,
+  "affectedPools": 1,
+  "idempotentReplay": false
+}
+```
+
+### 7) View leaderboard
+
+```bash
+curl -sS "$BASE_URL/api/v1/pools/22222222-2222-2222-2222-222222222222/leaderboard" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Example response:
+
+```json
+[
+  {
+    "poolId": "22222222-2222-2222-2222-222222222222",
+    "userId": "55555555-5555-5555-5555-555555555555",
+    "username": "alice",
+    "totalPoints": 9,
+    "rankPosition": 1,
+    "recalculatedAt": "2026-06-10T21:00:00Z"
+  },
+  {
+    "poolId": "22222222-2222-2222-2222-222222222222",
+    "userId": "66666666-6666-6666-6666-666666666666",
+    "username": "bob",
+    "totalPoints": 4,
+    "rankPosition": 2,
+    "recalculatedAt": "2026-06-10T21:00:00Z"
+  }
+]
+```
+
+### Current limitations (MVP)
+
+- admin/tournament/match seed data still needs a proper management flow
+- no frontend yet
+- no score-audit read endpoint yet
+- no async recalculation yet
 
 ---
 
@@ -250,7 +452,6 @@ mvn spring-boot:run
 - admin APIs for tournament/match/rule lifecycle
 - asynchronous recalculation option for very large pools
 - richer audit query APIs (per user/per match/per checksum)
-- explicit CI workflow with build/test/security gates and branch protections
 - observability hardening: metrics, tracing, structured audit logs
 
 ---

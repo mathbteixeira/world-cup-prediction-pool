@@ -58,9 +58,9 @@ class PoolLeaderboardControllerTest {
     void poolMemberCanViewLeaderboard() throws Exception {
         UUID poolId = UUID.randomUUID();
         UUID viewerId = UUID.randomUUID();
-        UserAccount viewer = user("viewer", "viewer@example.com", viewerId);
-        UserAccount alice = user("alice", "alice@example.com", UUID.randomUUID());
-        UserAccount bob = user("bob", "bob@example.com", UUID.randomUUID());
+        UserAccount viewer = buildUser("viewer", "viewer@example.com", viewerId);
+        UserAccount alice = buildUser("alice", "alice@example.com", UUID.randomUUID());
+        UserAccount bob = buildUser("bob", "bob@example.com", UUID.randomUUID());
         PredictionPool pool = pool(poolId, viewer);
 
         when(userAccountRepository.findByEmailIgnoreCase("viewer@example.com")).thenReturn(Optional.of(viewer));
@@ -85,7 +85,7 @@ class PoolLeaderboardControllerTest {
     void nonMemberGets403() throws Exception {
         UUID poolId = UUID.randomUUID();
         UUID viewerId = UUID.randomUUID();
-        UserAccount viewer = user("viewer", "viewer@example.com", viewerId);
+        UserAccount viewer = buildUser("viewer", "viewer@example.com", viewerId);
 
         when(userAccountRepository.findByEmailIgnoreCase("viewer@example.com")).thenReturn(Optional.of(viewer));
         when(poolMembershipRepository.findByPoolIdAndUserId(poolId, viewerId)).thenReturn(Optional.empty());
@@ -109,11 +109,11 @@ class PoolLeaderboardControllerTest {
     void entriesAreReturnedInRankOrder() throws Exception {
         UUID poolId = UUID.randomUUID();
         UUID viewerId = UUID.randomUUID();
-        UserAccount viewer = user("viewer", "viewer@example.com", viewerId);
+        UserAccount viewer = buildUser("viewer", "viewer@example.com", viewerId);
         PredictionPool pool = pool(poolId, viewer);
-        UserAccount alice = user("alice", "alice@example.com", UUID.randomUUID());
-        UserAccount bob = user("bob", "bob@example.com", UUID.randomUUID());
-        UserAccount carol = user("carol", "carol@example.com", UUID.randomUUID());
+        UserAccount alice = buildUser("alice", "alice@example.com", UUID.randomUUID());
+        UserAccount bob = buildUser("bob", "bob@example.com", UUID.randomUUID());
+        UserAccount carol = buildUser("carol", "carol@example.com", UUID.randomUUID());
 
         when(userAccountRepository.findByEmailIgnoreCase("viewer@example.com")).thenReturn(Optional.of(viewer));
         when(poolMembershipRepository.findByPoolIdAndUserId(poolId, viewerId))
@@ -136,7 +136,7 @@ class PoolLeaderboardControllerTest {
         return "/api/v1/pools/" + poolId + "/leaderboard";
     }
 
-    private static UserAccount user(String username, String email, UUID id) {
+    private static UserAccount buildUser(String username, String email, UUID id) {
         UserAccount user = new UserAccount(username, email, "hash", UserRole.USER);
         setId(user, id);
         return user;
