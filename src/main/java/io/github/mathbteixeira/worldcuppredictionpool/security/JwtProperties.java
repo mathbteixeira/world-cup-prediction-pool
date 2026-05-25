@@ -17,7 +17,7 @@ public record JwtProperties(
 
     public JwtProperties {
         if (secret == null || secret.isBlank()) {
-            throw new IllegalStateException("APP_JWT_SECRET must be configured for non-local profiles");
+            throw new IllegalStateException("JWT secret must be configured via APP_JWT_SECRET or a local/dev profile default");
         }
     }
 }
