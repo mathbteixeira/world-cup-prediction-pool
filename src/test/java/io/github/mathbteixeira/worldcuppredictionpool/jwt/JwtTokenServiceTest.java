@@ -12,11 +12,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class JwtTokenServiceTest {
 
+    private static final String NON_PRODUCTION_SECRET = "TE9DQUwtREVWLU5PTi1QUk9EVUNUSU9OLUpXVC1TRUNSRVQtQ0hBTkdFLUlOLVBST0QtMjAyNg==";
+
     @Test
     void shouldGenerateAndParseJwtSubject() {
         JwtTokenService service = new JwtTokenService(new JwtProperties(
                 "world-cup-prediction-pool",
-                "U3ByaW5nQm9vdDMtV29ybGRDdXAtUHJlZGljdGlvblBvb2wtRGV2U2VjcmV0LTI1Ni1CaXQ=",
+                NON_PRODUCTION_SECRET,
                 Duration.ofHours(2)
         ));
         UserAccount user = new UserAccount("demo", "demo@example.com", "encoded", UserRole.USER);
