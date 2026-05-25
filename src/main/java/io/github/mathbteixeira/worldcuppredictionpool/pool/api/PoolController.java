@@ -1,6 +1,7 @@
 package io.github.mathbteixeira.worldcuppredictionpool.pool.api;
 
 import io.github.mathbteixeira.worldcuppredictionpool.pool.application.PoolService;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.application.PoolLeaderboardService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -20,9 +21,11 @@ import java.util.UUID;
 public class PoolController {
 
     private final PoolService poolService;
+    private final PoolLeaderboardService poolLeaderboardService;
 
-    public PoolController(PoolService poolService) {
+    public PoolController(PoolService poolService, PoolLeaderboardService poolLeaderboardService) {
         this.poolService = poolService;
+        this.poolLeaderboardService = poolLeaderboardService;
     }
 
     @PostMapping
@@ -33,6 +36,11 @@ public class PoolController {
     @GetMapping
     public List<PoolSummaryResponse> list(Authentication authentication) {
         return poolService.listPools(authentication.getName());
+    }
+
+    @GetMapping("/{poolId}/leaderboard")
+    public List<PoolLeaderboardEntryResponse> leaderboard(@PathVariable UUID poolId, Authentication authentication) {
+        return poolLeaderboardService.listPoolLeaderboard(poolId, authentication.getName());
     }
 
     @PostMapping("/{poolId}/join")

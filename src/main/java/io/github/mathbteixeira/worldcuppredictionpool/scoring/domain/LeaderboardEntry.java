@@ -62,4 +62,8 @@ public class LeaderboardEntry extends BaseEntity {
     public int getRankPosition() {
         return rankPosition;
     }
+
+    public Instant getRecalculatedAt() {
+        return recalculatedAt;
+    }
 }
