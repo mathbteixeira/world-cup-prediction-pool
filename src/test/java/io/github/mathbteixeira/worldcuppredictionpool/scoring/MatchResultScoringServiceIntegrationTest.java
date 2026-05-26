@@ -30,6 +30,7 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -127,6 +128,7 @@ class MatchResultScoringServiceIntegrationTest {
 
 
     @Test
+    @Transactional
     void shouldIgnoreDuplicateScoreEventInsertOnConflict() {
         Prediction prediction = predictionRepository.findAll().get(0);
         Instant now = Instant.parse("2026-06-10T21:00:00Z");
