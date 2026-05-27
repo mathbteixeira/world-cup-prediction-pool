@@ -69,7 +69,7 @@ class PredictionSubmissionServiceTest {
     @Test
     void shouldRejectPredictionAfterKickoff() {
         UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
-        Tournament tournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
+        Tournament tournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
         setId(owner, UUID.randomUUID());
         setId(tournament, UUID.randomUUID());
         PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, tournament);
@@ -101,7 +101,7 @@ class PredictionSubmissionServiceTest {
     @Test
     void shouldRejectPredictionWhenUserIsNotPoolMember() {
         UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
-        Tournament tournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
+        Tournament tournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
         setId(owner, UUID.randomUUID());
         setId(tournament, UUID.randomUUID());
         PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, tournament);
@@ -135,8 +135,8 @@ class PredictionSubmissionServiceTest {
     @Test
     void shouldRejectPredictionWhenMatchTournamentDiffersFromPoolTournament() {
         UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
-        Tournament poolTournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
-        Tournament otherTournament = new Tournament("Euro", "euro-2028", 2028, TournamentStatus.OPEN);
+        Tournament poolTournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
+        Tournament otherTournament = new Tournament("Euro", "euro-2028", "2028", TournamentStatus.OPEN);
         setId(poolTournament, UUID.randomUUID());
         setId(otherTournament, UUID.randomUUID());
         PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, poolTournament);

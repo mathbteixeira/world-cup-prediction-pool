@@ -51,7 +51,7 @@ class PoolServiceTest {
 
     @Test
     void shouldCreatePoolAndRegisterOwnerMembership() {
-        Tournament tournament = new Tournament("World Cup", "world-cup-2026", 2026, TournamentStatus.OPEN);
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
         UUID tournamentId = UUID.randomUUID();
         UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
         when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(owner));
@@ -75,7 +75,7 @@ class PoolServiceTest {
 
     @Test
     void shouldRejectInvalidInviteCodeBeforeLoadingUser() {
-        Tournament tournament = new Tournament("World Cup", "world-cup-2026", 2026, TournamentStatus.OPEN);
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
         UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
         PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
         UUID poolId = UUID.randomUUID();

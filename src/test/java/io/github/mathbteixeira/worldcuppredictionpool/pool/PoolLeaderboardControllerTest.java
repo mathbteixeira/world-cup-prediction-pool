@@ -151,7 +151,7 @@ class PoolLeaderboardControllerTest {
     }
 
     private static PredictionPool pool(UUID poolId, UserAccount owner) {
-        Tournament tournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
+        Tournament tournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
         setId(tournament, UUID.randomUUID());
         PredictionPool pool = new PredictionPool("Office", "desc", "INVITE123", owner, tournament);
         setId(pool, poolId);
