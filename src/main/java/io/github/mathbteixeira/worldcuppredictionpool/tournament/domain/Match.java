@@ -1,0 +1,85 @@
+package io.github.mathbteixeira.worldcuppredictionpool.tournament.domain;
+
+import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "matches")
+public class Match extends BaseEntity {
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "tournament_id", nullable = false)
+    private Tournament tournament;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "home_team_id", nullable = false)
+    private Team homeTeam;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "away_team_id", nullable = false)
+    private Team awayTeam;
+
+    @Column(nullable = false)
+    private Instant kickoffAt;
+
+    @Column(nullable = false, length = 60)
+    private String stage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private MatchStatus status = MatchStatus.SCHEDULED;
+
+    protected Match() {
+    }
+
+    public Match(Tournament tournament,
+                 Team homeTeam,
+                 Team awayTeam,
+                 Instant kickoffAt,
+                 String stage,
+                 MatchStatus status) {
+        this.tournament = tournament;
+        this.homeTeam = homeTeam;
+        this.awayTeam = awayTeam;
+        this.kickoffAt = kickoffAt;
+        this.stage = stage;
+        this.status = status;
+    }
+
+    public Tournament getTournament() {
+        return tournament;
+    }
+
+    public Team getHomeTeam() {
+        return homeTeam;
+    }
+
+    public Team getAwayTeam() {
+        return awayTeam;
+    }
+
+    public Instant getKickoffAt() {
+        return kickoffAt;
+    }
+
+    public String getStage() {
+        return stage;
+    }
+
+    public MatchStatus getStatus() {
+        return status;
+    }
+
+    public boolean canAcceptPredictionsAt(Instant now) {
+        return now.isBefore(kickoffAt);
+    }
+}
