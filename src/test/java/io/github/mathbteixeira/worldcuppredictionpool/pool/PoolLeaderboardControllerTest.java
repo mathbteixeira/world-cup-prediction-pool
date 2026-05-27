@@ -8,6 +8,8 @@ import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.security.AppUserDetailsService;
+import io.github.mathbteixeira.worldcuppredictionpool.security.JwtTokenService;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.domain.LeaderboardEntry;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.LeaderboardEntryRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tournament;
@@ -53,6 +55,12 @@ class PoolLeaderboardControllerTest {
 
     @MockBean
     private UserAccountRepository userAccountRepository;
+
+    @MockBean
+    private JwtTokenService jwtTokenService;
+
+    @MockBean
+    private AppUserDetailsService appUserDetailsService;
 
     @Test
     void poolMemberCanViewLeaderboard() throws Exception {

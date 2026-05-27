@@ -1,16 +1,18 @@
 package io.github.mathbteixeira.worldcuppredictionpool.scoring;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.mathbteixeira.worldcuppredictionpool.security.AppUserDetailsService;
+import io.github.mathbteixeira.worldcuppredictionpool.security.JwtTokenService;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.api.AdminMatchResultController;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.MatchResultScoringService;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.RecalculationResult;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.UpsertMatchResultCommand;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.http.MediaType;
@@ -33,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(AdminMatchResultControllerTest.MethodSecurityTestConfiguration.class)
 class AdminMatchResultControllerTest {
 
-    @Configuration
+    @TestConfiguration
     @EnableMethodSecurity
     static class MethodSecurityTestConfiguration {
     }
@@ -46,6 +48,12 @@ class AdminMatchResultControllerTest {
 
     @MockBean
     private MatchResultScoringService matchResultScoringService;
+
+    @MockBean
+    private JwtTokenService jwtTokenService;
+
+    @MockBean
+    private AppUserDetailsService appUserDetailsService;
 
     @Test
     void adminCanUpsertResultAndReceivesExpectedJson() throws Exception {

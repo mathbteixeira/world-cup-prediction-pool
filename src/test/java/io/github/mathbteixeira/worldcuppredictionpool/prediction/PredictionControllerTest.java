@@ -14,6 +14,8 @@ import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tourname
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.TournamentStatus;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserRole;
+import io.github.mathbteixeira.worldcuppredictionpool.security.AppUserDetailsService;
+import io.github.mathbteixeira.worldcuppredictionpool.security.JwtTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -49,6 +51,12 @@ class PredictionControllerTest {
 
     @MockBean
     private PredictionSubmissionService predictionSubmissionService;
+
+    @MockBean
+    private JwtTokenService jwtTokenService;
+
+    @MockBean
+    private AppUserDetailsService appUserDetailsService;
 
     private UUID poolId;
     private UUID matchId;
