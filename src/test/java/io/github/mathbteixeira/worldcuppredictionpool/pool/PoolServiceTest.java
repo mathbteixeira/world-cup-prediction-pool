@@ -19,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
@@ -74,17 +75,47 @@ class PoolServiceTest {
     }
 
     @Test
-    void shouldRejectInvalidInviteCodeBeforeLoadingUser() {
+    void shouldRejectInvalidInviteCode() {
         Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
         UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
         PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
+        UserAccount user = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
         UUID poolId = UUID.randomUUID();
         when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(user));
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, null)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> poolService.joinPool(poolId, "WRONG123", "ana@example.com"))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("403 FORBIDDEN");
+                .satisfies(error -> {
+                    ResponseStatusException exception = (ResponseStatusException) error;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(exception.getReason()).isEqualTo("Invalid invite code");
+                });
 
-        verify(userAccountRepository, never()).findByEmailIgnoreCase("ana@example.com");
+        verify(poolMembershipRepository, never()).save(any(PoolMembership.class));
+    }
+
+    @Test
+    void shouldReturnConflictWhenUserIsAlreadyMemberBeforeInviteCodeValidation() {
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
+        PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
+        UserAccount user = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        UUID poolId = UUID.randomUUID();
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(user));
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, null))
+                .thenReturn(Optional.of(new PoolMembership(pool, user, PoolRole.MEMBER)));
+
+        assertThatThrownBy(() -> poolService.joinPool(poolId, "WRONG123", "ana@example.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> {
+                    ResponseStatusException exception = (ResponseStatusException) error;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getReason()).isEqualTo("User is already a member of this pool");
+                });
+
+        verify(poolMembershipRepository, never()).save(any(PoolMembership.class));
     }
 }

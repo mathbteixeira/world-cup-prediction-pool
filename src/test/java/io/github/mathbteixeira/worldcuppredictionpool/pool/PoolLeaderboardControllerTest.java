@@ -22,7 +22,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
@@ -32,8 +35,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -138,6 +143,23 @@ class PoolLeaderboardControllerTest {
                 .andExpect(jsonPath("$[0].rankPosition").value(1))
                 .andExpect(jsonPath("$[1].rankPosition").value(2))
                 .andExpect(jsonPath("$[2].rankPosition").value(2));
+    }
+
+    @Test
+    void joinPoolReturnsConflictErrorPayloadWithMessage() throws Exception {
+        UUID poolId = UUID.randomUUID();
+        when(poolService.joinPool(poolId, "INVITE123", "viewer@example.com"))
+                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "User is already a member of this pool"));
+
+        mockMvc.perform(post("/api/v1/pools/" + poolId + "/join")
+                        .with(user("viewer@example.com"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inviteCode\":\"INVITE123\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.httpStatus").value("CONFLICT"))
+                .andExpect(jsonPath("$.statusCode").value(409))
+                .andExpect(jsonPath("$.message").value("User is already a member of this pool"));
     }
 
     private static String endpoint(UUID poolId) {
