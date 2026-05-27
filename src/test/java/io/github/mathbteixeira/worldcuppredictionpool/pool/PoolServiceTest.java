@@ -1,9 +1,11 @@
 package io.github.mathbteixeira.worldcuppredictionpool.pool;
 
+import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.api.CreatePoolRequest;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.api.PoolSummaryResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.application.PoolService;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
@@ -22,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.lang.reflect.Field;
 import java.util.UUID;
 import java.util.Optional;
 
@@ -80,10 +83,12 @@ class PoolServiceTest {
         UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
         PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
         UserAccount user = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        UUID userId = UUID.randomUUID();
+        setId(user, userId);
         UUID poolId = UUID.randomUUID();
         when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
         when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(user));
-        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, null)).thenReturn(Optional.empty());
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, userId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> poolService.joinPool(poolId, "WRONG123", "ana@example.com"))
                 .isInstanceOf(ResponseStatusException.class)
@@ -102,10 +107,12 @@ class PoolServiceTest {
         UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
         PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
         UserAccount user = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        UUID userId = UUID.randomUUID();
+        setId(user, userId);
         UUID poolId = UUID.randomUUID();
         when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
         when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(user));
-        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, null))
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, userId))
                 .thenReturn(Optional.of(new PoolMembership(pool, user, PoolRole.MEMBER)));
 
         assertThatThrownBy(() -> poolService.joinPool(poolId, "WRONG123", "ana@example.com"))
@@ -117,5 +124,15 @@ class PoolServiceTest {
                 });
 
         verify(poolMembershipRepository, never()).save(any(PoolMembership.class));
+    }
+
+    private static void setId(BaseEntity entity, UUID id) {
+        try {
+            Field field = BaseEntity.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(entity, id);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }
