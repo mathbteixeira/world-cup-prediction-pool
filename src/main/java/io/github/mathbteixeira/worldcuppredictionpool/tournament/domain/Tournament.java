@@ -17,8 +17,8 @@ public class Tournament extends BaseEntity {
     @Column(nullable = false, unique = true, length = 80)
     private String slug;
 
-    @Column(nullable = false)
-    private int seasonYear;
+    @Column(nullable = false, length = 20)
+    private String seasonYear;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -27,7 +27,7 @@ public class Tournament extends BaseEntity {
     protected Tournament() {
     }
 
-    public Tournament(String name, String slug, int seasonYear, TournamentStatus status) {
+    public Tournament(String name, String slug, String seasonYear, TournamentStatus status) {
         this.name = name;
         this.slug = slug;
         this.seasonYear = seasonYear;
@@ -42,7 +42,7 @@ public class Tournament extends BaseEntity {
         return slug;
     }
 
-    public int getSeasonYear() {
+    public String getSeasonYear() {
         return seasonYear;
     }
 

@@ -103,7 +103,7 @@ class MatchResultScoringServiceIntegrationTest {
         UserAccount owner = userAccountRepository.save(new UserAccount("owner", "owner@example.com", "hash", UserRole.USER));
         UserAccount guest = userAccountRepository.save(new UserAccount("guest", "guest@example.com", "hash", UserRole.USER));
 
-        Tournament tournament = tournamentRepository.save(new Tournament("World Cup", "world-cup-2026", 2026, TournamentStatus.OPEN));
+        Tournament tournament = tournamentRepository.save(new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN));
         Team home = teamRepository.save(new Team(tournament, "Brazil", "BRA"));
         Team away = teamRepository.save(new Team(tournament, "Spain", "ESP"));
         Match match = matchRepository.save(new Match(

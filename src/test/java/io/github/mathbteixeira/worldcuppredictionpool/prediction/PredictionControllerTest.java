@@ -167,7 +167,7 @@ class PredictionControllerTest {
 
     private static Prediction buildPrediction(UUID poolId, UUID matchId, UUID predictionId, Instant submittedAt, int homeScore, int awayScore) {
         UserAccount user = new UserAccount("alice", "alice@example.com", "hash", UserRole.USER);
-        Tournament tournament = new Tournament("World Cup", "wc-2026", 2026, TournamentStatus.OPEN);
+        Tournament tournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
         setId(tournament, UUID.randomUUID());
         PredictionPool pool = new PredictionPool("Pool", "desc", "INVITE123", user, tournament);
         setId(pool, poolId);
