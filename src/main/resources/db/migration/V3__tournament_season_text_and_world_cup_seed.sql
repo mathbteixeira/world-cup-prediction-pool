@@ -7,7 +7,7 @@ values (
     now(),
     now(),
     'World Cup',
-    'world-cup-2026',
+    'world-cup',
     '2026',
     'OPEN'
 )
