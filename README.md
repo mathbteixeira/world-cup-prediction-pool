@@ -71,6 +71,8 @@ class Match {
   Team homeTeam;
   Team awayTeam;
   Instant kickoffAt;
+  String stage;
+  String groupName; // optional, for group-stage tournaments
 
   boolean canAcceptPredictionsAt(Instant now) {
     return now.isBefore(kickoffAt);

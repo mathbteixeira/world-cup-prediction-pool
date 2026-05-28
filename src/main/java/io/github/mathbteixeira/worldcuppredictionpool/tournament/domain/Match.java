@@ -34,6 +34,9 @@ public class Match extends BaseEntity {
     @Column(nullable = false, length = 60)
     private String stage;
 
+    @Column(length = 20)
+    private String groupName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private MatchStatus status = MatchStatus.SCHEDULED;
@@ -47,11 +50,22 @@ public class Match extends BaseEntity {
                  Instant kickoffAt,
                  String stage,
                  MatchStatus status) {
+        this(tournament, homeTeam, awayTeam, kickoffAt, stage, null, status);
+    }
+
+    public Match(Tournament tournament,
+                 Team homeTeam,
+                 Team awayTeam,
+                 Instant kickoffAt,
+                 String stage,
+                 String groupName,
+                 MatchStatus status) {
         this.tournament = tournament;
         this.homeTeam = homeTeam;
         this.awayTeam = awayTeam;
         this.kickoffAt = kickoffAt;
         this.stage = stage;
+        this.groupName = groupName;
         this.status = status;
     }
 
@@ -73,6 +87,10 @@ public class Match extends BaseEntity {
 
     public String getStage() {
         return stage;
+    }
+
+    public String getGroupName() {
+        return groupName;
     }
 
     public MatchStatus getStatus() {
