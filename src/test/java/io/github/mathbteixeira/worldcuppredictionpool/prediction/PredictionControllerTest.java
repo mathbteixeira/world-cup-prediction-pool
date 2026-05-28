@@ -22,8 +22,10 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
@@ -159,6 +161,22 @@ class PredictionControllerTest {
                 .getStatus();
 
         assertThat(status).isIn(401, 403);
+    }
+
+    @Test
+    void shouldReturnConflictErrorPayloadWithMessageWhenServiceThrowsResponseStatusException() throws Exception {
+        when(predictionSubmissionService.submit(any()))
+                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "Predictions are closed for this match"));
+
+        mockMvc.perform(put(endpoint())
+                        .with(user("alice@example.com"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("homeScore", 2, "awayScore", 1))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.httpStatus").value("CONFLICT"))
+                .andExpect(jsonPath("$.statusCode").value(409))
+                .andExpect(jsonPath("$.message").value("Predictions are closed for this match"));
     }
 
     private String endpoint() {

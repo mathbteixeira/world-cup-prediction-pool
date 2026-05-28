@@ -66,13 +66,13 @@ public class PoolService {
         PredictionPool pool = predictionPoolRepository.findById(poolId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
 
-        if (!pool.getInviteCode().equalsIgnoreCase(inviteCode.trim())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid invite code");
-        }
-
         UserAccount user = getUserByEmail(email);
         if (poolMembershipRepository.findByPoolIdAndUserId(poolId, user.getId()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User is already a member of this pool");
+        }
+
+        if (!pool.getInviteCode().equalsIgnoreCase(inviteCode.trim())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid invite code");
         }
 
         PoolMembership membership = poolMembershipRepository.save(new PoolMembership(pool, user, PoolRole.MEMBER));
