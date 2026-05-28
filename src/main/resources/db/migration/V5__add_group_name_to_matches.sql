@@ -1,2 +1,2 @@
 alter table matches
-    add column group_name varchar(20);
+    add column group_name varchar(1);

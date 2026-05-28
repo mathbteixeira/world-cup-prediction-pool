@@ -34,7 +34,7 @@ public class Match extends BaseEntity {
     @Column(nullable = false, length = 60)
     private String stage;
 
-    @Column(length = 20)
+    @Column(length = 1)
     private String groupName;
 
     @Enumerated(EnumType.STRING)
