@@ -189,6 +189,7 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `POST /api/v1/pools`
 - `GET /api/v1/pools`
 - `POST /api/v1/pools/{poolId}/join`
+- `GET /api/v1/tournaments/{tournamentId}/matches`
 - `PUT /api/v1/pools/{poolId}/matches/{matchId}/prediction`
 - `PUT /api/v1/admin/matches/{matchId}/result`
 - `GET /api/v1/pools/{poolId}/leaderboard`
@@ -309,6 +310,40 @@ Example response:
 ```
 
 ### 5) Submit prediction
+
+Discover match IDs:
+
+```bash
+curl -sS "$BASE_URL/api/v1/tournaments/11111111-1111-1111-1111-111111111111/matches?group=A&predictableOnly=true" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Example response:
+
+```json
+[
+  {
+    "matchId": "33333333-3333-3333-3333-333333333333",
+    "tournamentId": "11111111-1111-1111-1111-111111111111",
+    "homeTeam": {
+      "id": "77777777-7777-7777-7777-777777777777",
+      "name": "Mexico",
+      "fifaCode": "MEX"
+    },
+    "awayTeam": {
+      "id": "88888888-8888-8888-8888-888888888888",
+      "name": "South Africa",
+      "fifaCode": "RSA"
+    },
+    "kickoffAt": "2026-06-11T16:00:00Z",
+    "stage": "GROUP_STAGE",
+    "groupName": "A",
+    "status": "SCHEDULED",
+    "result": null,
+    "predictionOpen": true
+  }
+]
+```
 
 ```bash
 curl -sS -X PUT "$BASE_URL/api/v1/pools/22222222-2222-2222-2222-222222222222/matches/33333333-3333-3333-3333-333333333333/prediction" \
@@ -448,6 +483,7 @@ mvn spring-boot:run
 - leaderboard rebuild is deterministic and safe, but recomputes per affected pool (simple and reliable over micro-optimized)
 - idempotency is implemented at DB constraint + application orchestration level
 - rule versioning supports evolution but currently ships with v1 default fallback
+- Pagination is intentionally omitted from the match listing endpoint for the MVP because a World Cup tournament has a small, bounded number of matches. The API keeps the client flow simple while leaving pagination easy to add if the domain expands to larger competitions or historical datasets.
 
 ### Planned improvements
 
