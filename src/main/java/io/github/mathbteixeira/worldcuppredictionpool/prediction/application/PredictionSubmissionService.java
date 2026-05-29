@@ -3,7 +3,8 @@ package io.github.mathbteixeira.worldcuppredictionpool.prediction.application;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
-import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.UserPredictionResponse;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PoolPredictionResponse;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PredictionUserResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.persistence.PredictionRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.api.MatchResultResponse;
@@ -94,7 +95,7 @@ public class PredictionSubmissionService {
     }
 
     @Transactional(readOnly = true)
-    public List<UserPredictionResponse> listCurrentUserPredictions(UUID poolId, String userEmail) {
+    public List<PoolPredictionResponse> listVisiblePoolPredictions(UUID poolId, String userEmail) {
         predictionPoolRepository.findById(poolId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
         UserAccount user = userAccountRepository.findByEmailIgnoreCase(userEmail)
@@ -103,7 +104,10 @@ public class PredictionSubmissionService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not a member of this pool");
         }
 
-        List<Prediction> predictions = predictionRepository.findAllForPoolAndUserOrderByKickoffAt(poolId, user.getId());
+        Instant now = Instant.now(clock);
+        List<Prediction> predictions = predictionRepository.findAllForPoolOrderByKickoffAt(poolId).stream()
+                .filter(prediction -> isVisibleToUser(prediction, user, now))
+                .toList();
         if (predictions.isEmpty()) {
             return List.of();
         }
@@ -112,20 +116,31 @@ public class PredictionSubmissionService {
                         predictions.stream().map(prediction -> prediction.getMatch().getId()).toList())
                 .stream()
                 .collect(Collectors.toMap(result -> result.getMatch().getId(), Function.identity()));
-        Instant now = Instant.now(clock);
 
         return predictions.stream()
                 .map(prediction -> toResponse(
                         prediction,
+                        user,
                         Optional.ofNullable(resultsByMatchId.get(prediction.getMatch().getId())),
                         now))
                 .toList();
     }
 
-    private UserPredictionResponse toResponse(Prediction prediction, Optional<MatchResult> result, Instant now) {
-        return new UserPredictionResponse(
+    private boolean isVisibleToUser(Prediction prediction, UserAccount user, Instant now) {
+        return prediction.getUser().getId().equals(user.getId())
+                || !prediction.getMatch().canAcceptPredictionsAt(now);
+    }
+
+    private PoolPredictionResponse toResponse(Prediction prediction,
+                                              UserAccount currentUser,
+                                              Optional<MatchResult> result,
+                                              Instant now) {
+        UserAccount predictionUser = prediction.getUser();
+        return new PoolPredictionResponse(
                 prediction.getId(),
                 prediction.getPool().getId(),
+                new PredictionUserResponse(predictionUser.getId(), predictionUser.getUsername()),
+                predictionUser.getId().equals(currentUser.getId()),
                 toMatchResponse(prediction.getMatch(), result, now),
                 prediction.getPredictedHomeScore(),
                 prediction.getPredictedAwayScore(),

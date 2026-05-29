@@ -19,14 +19,13 @@ public interface PredictionRepository extends JpaRepository<Prediction, UUID> {
             select prediction
             from Prediction prediction
             join fetch prediction.pool pool
+            join fetch prediction.user user
             join fetch prediction.match match
             join fetch match.tournament tournament
             join fetch match.homeTeam homeTeam
             join fetch match.awayTeam awayTeam
             where pool.id = :poolId
-              and prediction.user.id = :userId
             order by match.kickoffAt asc
             """)
-    List<Prediction> findAllForPoolAndUserOrderByKickoffAt(@Param("poolId") UUID poolId,
-                                                            @Param("userId") UUID userId);
+    List<Prediction> findAllForPoolOrderByKickoffAt(@Param("poolId") UUID poolId);
 }

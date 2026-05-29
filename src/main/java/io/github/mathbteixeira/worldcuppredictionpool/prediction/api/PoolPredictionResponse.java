@@ -5,9 +5,11 @@ import io.github.mathbteixeira.worldcuppredictionpool.tournament.api.MatchSummar
 import java.time.Instant;
 import java.util.UUID;
 
-public record UserPredictionResponse(
+public record PoolPredictionResponse(
         UUID predictionId,
         UUID poolId,
+        PredictionUserResponse user,
+        boolean mine,
         MatchSummaryResponse match,
         int homeScore,
         int awayScore,

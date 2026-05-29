@@ -6,7 +6,7 @@ import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
-import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.UserPredictionResponse;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PoolPredictionResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.PredictionSubmissionService;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.SubmitPredictionCommand;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
@@ -78,7 +78,7 @@ class PredictionSubmissionServiceTest {
     }
 
     @Test
-    void shouldListCurrentUserPredictionsWithMatchDetailsAndResult() {
+    void shouldListVisiblePoolPredictionsWithMatchDetailsAndResult() {
         UserAccount user = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
         Tournament tournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
         setId(user, UUID.randomUUID());
@@ -110,16 +110,19 @@ class PredictionSubmissionServiceTest {
         when(userAccountRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(user));
         when(poolMembershipRepository.findByPoolIdAndUserId(poolId, user.getId()))
                 .thenReturn(Optional.of(new PoolMembership(pool, user, PoolRole.OWNER)));
-        when(predictionRepository.findAllForPoolAndUserOrderByKickoffAt(poolId, user.getId()))
+        when(predictionRepository.findAllForPoolOrderByKickoffAt(poolId))
                 .thenReturn(List.of(prediction));
         when(matchResultRepository.findAllByMatchIdIn(List.of(matchId))).thenReturn(List.of(result));
 
-        List<UserPredictionResponse> predictions = predictionSubmissionService.listCurrentUserPredictions(poolId, "owner@example.com");
+        List<PoolPredictionResponse> predictions = predictionSubmissionService.listVisiblePoolPredictions(poolId, "owner@example.com");
 
         assertThat(predictions).hasSize(1);
-        UserPredictionResponse response = predictions.getFirst();
+        PoolPredictionResponse response = predictions.getFirst();
         assertThat(response.predictionId()).isEqualTo(predictionId);
         assertThat(response.poolId()).isEqualTo(poolId);
+        assertThat(response.user().userId()).isEqualTo(user.getId());
+        assertThat(response.user().username()).isEqualTo("owner");
+        assertThat(response.mine()).isTrue();
         assertThat(response.homeScore()).isEqualTo(2);
         assertThat(response.awayScore()).isEqualTo(1);
         assertThat(response.match().matchId()).isEqualTo(matchId);
@@ -128,6 +131,66 @@ class PredictionSubmissionServiceTest {
         assertThat(response.match().groupName()).isEqualTo("A");
         assertThat(response.match().result().homeScore()).isEqualTo(3);
         assertThat(response.match().predictionOpen()).isFalse();
+    }
+
+    @Test
+    void shouldHideOtherPoolMembersPredictionsUntilMatchCloses() {
+        UserAccount user = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
+        UserAccount otherUser = new UserAccount("bob", "bob@example.com", "hash", UserRole.USER);
+        Tournament tournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
+        setId(user, UUID.randomUUID());
+        setId(otherUser, UUID.randomUUID());
+        setId(tournament, UUID.randomUUID());
+        PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", user, tournament);
+        UUID poolId = UUID.randomUUID();
+        setId(pool, poolId);
+        Team home = new Team(tournament, "Brazil", "BRA");
+        Team away = new Team(tournament, "Spain", "ESP");
+        Match futureMatch = new Match(
+                tournament,
+                home,
+                away,
+                Instant.parse("2026-06-01T13:00:00Z"),
+                "GROUP_STAGE",
+                "A",
+                MatchStatus.SCHEDULED
+        );
+        Match closedMatch = new Match(
+                tournament,
+                away,
+                home,
+                Instant.parse("2026-06-01T11:00:00Z"),
+                "GROUP_STAGE",
+                "A",
+                MatchStatus.SCHEDULED
+        );
+        setId(futureMatch, UUID.randomUUID());
+        setId(closedMatch, UUID.randomUUID());
+        Prediction ownFuturePrediction = new Prediction(pool, futureMatch, user, 2, 1, Instant.parse("2026-05-31T10:00:00Z"));
+        Prediction otherFuturePrediction = new Prediction(pool, futureMatch, otherUser, 1, 0, Instant.parse("2026-05-31T10:01:00Z"));
+        Prediction otherClosedPrediction = new Prediction(pool, closedMatch, otherUser, 0, 1, Instant.parse("2026-05-31T10:02:00Z"));
+        setId(ownFuturePrediction, UUID.randomUUID());
+        setId(otherFuturePrediction, UUID.randomUUID());
+        setId(otherClosedPrediction, UUID.randomUUID());
+
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(user));
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, user.getId()))
+                .thenReturn(Optional.of(new PoolMembership(pool, user, PoolRole.OWNER)));
+        when(predictionRepository.findAllForPoolOrderByKickoffAt(poolId))
+                .thenReturn(List.of(otherClosedPrediction, ownFuturePrediction, otherFuturePrediction));
+        when(matchResultRepository.findAllByMatchIdIn(List.of(closedMatch.getId(), futureMatch.getId())))
+                .thenReturn(List.of());
+
+        List<PoolPredictionResponse> predictions = predictionSubmissionService.listVisiblePoolPredictions(poolId, "owner@example.com");
+
+        assertThat(predictions).hasSize(2);
+        assertThat(predictions)
+                .extracting(response -> response.user().username())
+                .containsExactly("bob", "owner");
+        assertThat(predictions)
+                .extracting(PoolPredictionResponse::mine)
+                .containsExactly(false, true);
     }
 
     @Test
@@ -142,7 +205,7 @@ class PredictionSubmissionServiceTest {
         when(userAccountRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(user));
         when(poolMembershipRepository.findByPoolIdAndUserId(poolId, user.getId())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> predictionSubmissionService.listCurrentUserPredictions(poolId, "owner@example.com"))
+        assertThatThrownBy(() -> predictionSubmissionService.listVisiblePoolPredictions(poolId, "owner@example.com"))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(error -> {
                     ResponseStatusException exception = (ResponseStatusException) error;

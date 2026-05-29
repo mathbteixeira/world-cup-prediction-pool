@@ -2,8 +2,9 @@ package io.github.mathbteixeira.worldcuppredictionpool.prediction;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PoolPredictionResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PredictionController;
-import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.UserPredictionResponse;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PredictionUserResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.PredictionSubmissionService;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.SubmitPredictionCommand;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
@@ -99,11 +100,14 @@ class PredictionControllerTest {
     }
 
     @Test
-    void shouldReturnCurrentUserPredictionsForAuthenticatedRequest() throws Exception {
-        when(predictionSubmissionService.listCurrentUserPredictions(poolId, "alice@example.com"))
-                .thenReturn(List.of(new UserPredictionResponse(
+    void shouldReturnVisiblePoolPredictionsForAuthenticatedRequest() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(predictionSubmissionService.listVisiblePoolPredictions(poolId, "alice@example.com"))
+                .thenReturn(List.of(new PoolPredictionResponse(
                         predictionId,
                         poolId,
+                        new PredictionUserResponse(userId, "alice"),
+                        true,
                         new MatchSummaryResponse(
                                 matchId,
                                 UUID.randomUUID(),
@@ -126,6 +130,9 @@ class PredictionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].predictionId").value(predictionId.toString()))
                 .andExpect(jsonPath("$[0].poolId").value(poolId.toString()))
+                .andExpect(jsonPath("$[0].user.userId").value(userId.toString()))
+                .andExpect(jsonPath("$[0].user.username").value("alice"))
+                .andExpect(jsonPath("$[0].mine").value(true))
                 .andExpect(jsonPath("$[0].match.matchId").value(matchId.toString()))
                 .andExpect(jsonPath("$[0].match.homeTeam.fifaCode").value("BRA"))
                 .andExpect(jsonPath("$[0].match.awayTeam.fifaCode").value("ESP"))

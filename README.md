@@ -371,7 +371,7 @@ Example response:
 }
 ```
 
-### 6) View current user's predictions
+### 6) View visible pool predictions
 
 ```bash
 curl -sS "$BASE_URL/api/v1/pools/22222222-2222-2222-2222-222222222222/predictions" \
@@ -385,6 +385,11 @@ Example response:
   {
     "predictionId": "44444444-4444-4444-4444-444444444444",
     "poolId": "22222222-2222-2222-2222-222222222222",
+    "user": {
+      "userId": "55555555-5555-5555-5555-555555555555",
+      "username": "alice"
+    },
+    "mine": true,
     "match": {
       "matchId": "33333333-3333-3333-3333-333333333333",
       "tournamentId": "11111111-1111-1111-1111-111111111111",
@@ -411,6 +416,8 @@ Example response:
   }
 ]
 ```
+
+The endpoint always includes the authenticated user's own predictions. Other pool members' predictions are included only after that match is closed for predictions, so users cannot copy each other's picks before kickoff.
 
 ### 7) Admin upserts match result (triggers recalculation)
 

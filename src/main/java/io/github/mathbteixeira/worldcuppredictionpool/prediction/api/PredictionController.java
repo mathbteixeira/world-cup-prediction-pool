@@ -34,17 +34,17 @@ public class PredictionController {
     }
 
     @GetMapping("/predictions")
-    @Operation(summary = "List current user predictions", description = "Returns the authenticated user's submitted predictions for the pool, sorted by match kickoff time.")
+    @Operation(summary = "List visible pool predictions", description = "Returns the authenticated user's predictions plus other pool members' predictions for matches that are closed for prediction, sorted by match kickoff time.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Current user predictions returned"),
+            @ApiResponse(responseCode = "200", description = "Visible pool predictions returned"),
             @ApiResponse(responseCode = "401", description = "Authentication required"),
             @ApiResponse(responseCode = "403", description = "Current user is not a member of the pool"),
             @ApiResponse(responseCode = "404", description = "Pool not found")
     })
-    public List<UserPredictionResponse> listCurrentUserPredictions(
+    public List<PoolPredictionResponse> listVisiblePoolPredictions(
             @Parameter(description = "Prediction pool id") @PathVariable UUID poolId,
             Authentication authentication) {
-        return predictionSubmissionService.listCurrentUserPredictions(poolId, authentication.getName());
+        return predictionSubmissionService.listVisiblePoolPredictions(poolId, authentication.getName());
     }
 
     @PutMapping("/matches/{matchId}/prediction")
