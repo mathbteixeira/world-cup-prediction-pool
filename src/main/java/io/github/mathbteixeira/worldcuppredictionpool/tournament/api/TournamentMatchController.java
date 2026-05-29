@@ -30,11 +30,21 @@ public class TournamentMatchController {
                                                   @RequestParam(required = false) MatchStatus status,
                                                   @RequestParam(required = false) String stage,
                                                   @RequestParam(name = "group", required = false) String groupName,
+                                                  @RequestParam(name = "team", required = false) String teamFifaCode,
                                                   @RequestParam(required = false)
                                                   @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
                                                   @RequestParam(required = false)
                                                   @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
                                                   @RequestParam(defaultValue = "false") boolean predictableOnly) {
-        return tournamentMatchService.listMatches(tournamentId, status, stage, groupName, from, to, predictableOnly);
+        return tournamentMatchService.listMatches(
+                tournamentId,
+                status,
+                stage,
+                groupName,
+                teamFifaCode,
+                from,
+                to,
+                predictableOnly
+        );
     }
 }
