@@ -3,10 +3,13 @@ package io.github.mathbteixeira.worldcuppredictionpool.prediction;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PredictionController;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.UserPredictionResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.PredictionSubmissionService;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.application.SubmitPredictionCommand;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.api.MatchSummaryResponse;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.api.TeamSummaryResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.MatchStatus;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
@@ -29,6 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -38,6 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -91,6 +96,44 @@ class PredictionControllerTest {
                 .andExpect(jsonPath("$.homeScore").value(2))
                 .andExpect(jsonPath("$.awayScore").value(1))
                 .andExpect(jsonPath("$.submittedAt").value(submittedAt.toString()));
+    }
+
+    @Test
+    void shouldReturnCurrentUserPredictionsForAuthenticatedRequest() throws Exception {
+        when(predictionSubmissionService.listCurrentUserPredictions(poolId, "alice@example.com"))
+                .thenReturn(List.of(new UserPredictionResponse(
+                        predictionId,
+                        poolId,
+                        new MatchSummaryResponse(
+                                matchId,
+                                UUID.randomUUID(),
+                                new TeamSummaryResponse(UUID.randomUUID(), "Brazil", "BRA"),
+                                new TeamSummaryResponse(UUID.randomUUID(), "Spain", "ESP"),
+                                Instant.parse("2026-06-10T10:00:00Z"),
+                                "GROUP_STAGE",
+                                "A",
+                                MatchStatus.SCHEDULED,
+                                null,
+                                true
+                        ),
+                        2,
+                        1,
+                        submittedAt
+                )));
+
+        mockMvc.perform(get("/api/v1/pools/" + poolId + "/predictions")
+                        .with(user("alice@example.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].predictionId").value(predictionId.toString()))
+                .andExpect(jsonPath("$[0].poolId").value(poolId.toString()))
+                .andExpect(jsonPath("$[0].match.matchId").value(matchId.toString()))
+                .andExpect(jsonPath("$[0].match.homeTeam.fifaCode").value("BRA"))
+                .andExpect(jsonPath("$[0].match.awayTeam.fifaCode").value("ESP"))
+                .andExpect(jsonPath("$[0].match.groupName").value("A"))
+                .andExpect(jsonPath("$[0].match.predictionOpen").value(true))
+                .andExpect(jsonPath("$[0].homeScore").value(2))
+                .andExpect(jsonPath("$[0].awayScore").value(1))
+                .andExpect(jsonPath("$[0].submittedAt").value(submittedAt.toString()));
     }
 
     @Test

@@ -11,18 +11,20 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/pools/{poolId}/matches/{matchId}/prediction")
+@RequestMapping("/api/v1/pools/{poolId}")
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Predictions", description = "Prediction submission APIs.")
+@Tag(name = "Predictions", description = "Prediction submission and lookup APIs.")
 public class PredictionController {
 
     private final PredictionSubmissionService predictionSubmissionService;
@@ -31,7 +33,21 @@ public class PredictionController {
         this.predictionSubmissionService = predictionSubmissionService;
     }
 
-    @PutMapping
+    @GetMapping("/predictions")
+    @Operation(summary = "List current user predictions", description = "Returns the authenticated user's submitted predictions for the pool, sorted by match kickoff time.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Current user predictions returned"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Current user is not a member of the pool"),
+            @ApiResponse(responseCode = "404", description = "Pool not found")
+    })
+    public List<UserPredictionResponse> listCurrentUserPredictions(
+            @Parameter(description = "Prediction pool id") @PathVariable UUID poolId,
+            Authentication authentication) {
+        return predictionSubmissionService.listCurrentUserPredictions(poolId, authentication.getName());
+    }
+
+    @PutMapping("/matches/{matchId}/prediction")
     @Operation(summary = "Submit or update prediction", description = "Creates or replaces the current user's score prediction for a match before kickoff.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Prediction submitted or updated"),

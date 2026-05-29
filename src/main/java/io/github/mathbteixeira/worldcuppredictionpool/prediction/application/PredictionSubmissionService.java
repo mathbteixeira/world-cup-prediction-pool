@@ -3,10 +3,17 @@ package io.github.mathbteixeira.worldcuppredictionpool.prediction.application;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.UserPredictionResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.persistence.PredictionRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.api.MatchResultResponse;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.api.MatchSummaryResponse;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.api.TeamSummaryResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.MatchResult;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchResultRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import io.github.mathbteixeira.worldcuppredictionpool.user.persistence.UserAccountRepository;
 import org.springframework.http.HttpStatus;
@@ -16,6 +23,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class PredictionSubmissionService {
@@ -24,6 +37,7 @@ public class PredictionSubmissionService {
     private final PredictionPoolRepository predictionPoolRepository;
     private final PoolMembershipRepository poolMembershipRepository;
     private final MatchRepository matchRepository;
+    private final MatchResultRepository matchResultRepository;
     private final UserAccountRepository userAccountRepository;
     private final Clock clock;
 
@@ -31,12 +45,14 @@ public class PredictionSubmissionService {
                                        PredictionPoolRepository predictionPoolRepository,
                                        PoolMembershipRepository poolMembershipRepository,
                                        MatchRepository matchRepository,
+                                       MatchResultRepository matchResultRepository,
                                        UserAccountRepository userAccountRepository,
                                        Clock clock) {
         this.predictionRepository = predictionRepository;
         this.predictionPoolRepository = predictionPoolRepository;
         this.poolMembershipRepository = poolMembershipRepository;
         this.matchRepository = matchRepository;
+        this.matchResultRepository = matchResultRepository;
         this.userAccountRepository = userAccountRepository;
         this.clock = clock;
     }
@@ -75,5 +91,74 @@ public class PredictionSubmissionService {
                         command.awayScore(),
                         now
                 )));
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserPredictionResponse> listCurrentUserPredictions(UUID poolId, String userEmail) {
+        predictionPoolRepository.findById(poolId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
+        UserAccount user = userAccountRepository.findByEmailIgnoreCase(userEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        if (poolMembershipRepository.findByPoolIdAndUserId(poolId, user.getId()).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not a member of this pool");
+        }
+
+        List<Prediction> predictions = predictionRepository.findAllForPoolAndUserOrderByKickoffAt(poolId, user.getId());
+        if (predictions.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, MatchResult> resultsByMatchId = matchResultRepository.findAllByMatchIdIn(
+                        predictions.stream().map(prediction -> prediction.getMatch().getId()).toList())
+                .stream()
+                .collect(Collectors.toMap(result -> result.getMatch().getId(), Function.identity()));
+        Instant now = Instant.now(clock);
+
+        return predictions.stream()
+                .map(prediction -> toResponse(
+                        prediction,
+                        Optional.ofNullable(resultsByMatchId.get(prediction.getMatch().getId())),
+                        now))
+                .toList();
+    }
+
+    private UserPredictionResponse toResponse(Prediction prediction, Optional<MatchResult> result, Instant now) {
+        return new UserPredictionResponse(
+                prediction.getId(),
+                prediction.getPool().getId(),
+                toMatchResponse(prediction.getMatch(), result, now),
+                prediction.getPredictedHomeScore(),
+                prediction.getPredictedAwayScore(),
+                prediction.getSubmittedAt()
+        );
+    }
+
+    private MatchSummaryResponse toMatchResponse(Match match, Optional<MatchResult> result, Instant now) {
+        return new MatchSummaryResponse(
+                match.getId(),
+                match.getTournament().getId(),
+                toTeamResponse(match.getHomeTeam()),
+                toTeamResponse(match.getAwayTeam()),
+                match.getKickoffAt(),
+                match.getStage(),
+                match.getGroupName(),
+                match.getStatus(),
+                result.map(this::toResultResponse).orElse(null),
+                match.canAcceptPredictionsAt(now)
+        );
+    }
+
+    private TeamSummaryResponse toTeamResponse(Team team) {
+        return new TeamSummaryResponse(team.getId(), team.getName(), team.getFifaCode());
+    }
+
+    private MatchResultResponse toResultResponse(MatchResult result) {
+        return new MatchResultResponse(
+                result.getHomeScore(),
+                result.getAwayScore(),
+                result.getHomePenaltyScore(),
+                result.getAwayPenaltyScore(),
+                result.isFinalResult()
+        );
     }
 }

@@ -191,6 +191,7 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `POST /api/v1/pools/{poolId}/join`
 - `GET /api/v1/tournaments/{tournamentId}/matches`
 - `PUT /api/v1/pools/{poolId}/matches/{matchId}/prediction`
+- `GET /api/v1/pools/{poolId}/predictions`
 - `PUT /api/v1/admin/matches/{matchId}/result`
 - `GET /api/v1/pools/{poolId}/leaderboard`
 
@@ -370,7 +371,48 @@ Example response:
 }
 ```
 
-### 6) Admin upserts match result (triggers recalculation)
+### 6) View current user's predictions
+
+```bash
+curl -sS "$BASE_URL/api/v1/pools/22222222-2222-2222-2222-222222222222/predictions" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Example response:
+
+```json
+[
+  {
+    "predictionId": "44444444-4444-4444-4444-444444444444",
+    "poolId": "22222222-2222-2222-2222-222222222222",
+    "match": {
+      "matchId": "33333333-3333-3333-3333-333333333333",
+      "tournamentId": "11111111-1111-1111-1111-111111111111",
+      "homeTeam": {
+        "id": "77777777-7777-7777-7777-777777777777",
+        "name": "Mexico",
+        "fifaCode": "MEX"
+      },
+      "awayTeam": {
+        "id": "88888888-8888-8888-8888-888888888888",
+        "name": "South Africa",
+        "fifaCode": "RSA"
+      },
+      "kickoffAt": "2026-06-11T16:00:00Z",
+      "stage": "GROUP_STAGE",
+      "groupName": "A",
+      "status": "SCHEDULED",
+      "result": null,
+      "predictionOpen": true
+    },
+    "homeScore": 2,
+    "awayScore": 1,
+    "submittedAt": "2026-06-01T10:00:00Z"
+  }
+]
+```
+
+### 7) Admin upserts match result (triggers recalculation)
 
 ```bash
 curl -sS -X PUT "$BASE_URL/api/v1/admin/matches/33333333-3333-3333-3333-333333333333/result" \
@@ -402,7 +444,7 @@ Example response:
 }
 ```
 
-### 7) View leaderboard
+### 8) View leaderboard
 
 ```bash
 curl -sS "$BASE_URL/api/v1/pools/22222222-2222-2222-2222-222222222222/leaderboard" \
