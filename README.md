@@ -194,6 +194,7 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `GET /api/v1/tournaments/{tournamentId}/matches`
 - `PUT /api/v1/pools/{poolId}/matches/{matchId}/prediction`
 - `GET /api/v1/pools/{poolId}/predictions`
+- `PUT /api/v1/admin/matches/{matchId}/participants`
 - `PUT /api/v1/admin/matches/{matchId}/result`
 - `GET /api/v1/pools/{poolId}/leaderboard`
 
@@ -499,6 +500,18 @@ Example response:
 Knockout matches may be known before their participants are confirmed. These matches should be stored with nullable `homeTeam`/`awayTeam` and display placeholders such as `1A`, `2B`, or `3C/D/F/G/H`.
 
 Placeholders are intentionally stored on the match instead of creating fake rows in `teams`, keeping the team catalog limited to real national teams. A match is not open for predictions until both real team references are resolved.
+
+Admins can resolve placeholder participants once teams qualify. Already resolved matches are not overwritten by this endpoint, avoiding accidental changes after predictions may exist:
+
+```bash
+curl -sS -X PUT "$BASE_URL/api/v1/admin/matches/33333333-3333-3333-3333-333333333333/participants" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "homeTeamId": "77777777-7777-7777-7777-777777777777",
+    "awayTeamId": "88888888-8888-8888-8888-888888888888"
+  }'
+```
 
 ---
 
