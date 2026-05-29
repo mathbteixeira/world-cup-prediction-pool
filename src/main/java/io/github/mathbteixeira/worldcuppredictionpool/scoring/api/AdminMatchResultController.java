@@ -3,7 +3,12 @@ package io.github.mathbteixeira.worldcuppredictionpool.scoring.api;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.MatchResultScoringService;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.RecalculationResult;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.UpsertMatchResultCommand;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +22,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/admin/matches/{matchId}/result")
 @SecurityRequirement(name = "bearerAuth")
+@Tag(name = "Admin match results", description = "Administrative match result upsert and scoring recalculation APIs.")
 public class AdminMatchResultController {
 
     private final MatchResultScoringService matchResultScoringService;
@@ -27,7 +33,15 @@ public class AdminMatchResultController {
 
     @PutMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public MatchResultRecalculationResponse upsertResult(@PathVariable UUID matchId,
+    @Operation(summary = "Upsert match result", description = "Creates or updates the official result for a match and recalculates affected predictions and leaderboards.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Result upserted and scoring recalculated"),
+            @ApiResponse(responseCode = "400", description = "Invalid result request"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Admin role required"),
+            @ApiResponse(responseCode = "404", description = "Match not found")
+    })
+    public MatchResultRecalculationResponse upsertResult(@Parameter(description = "Match id") @PathVariable UUID matchId,
                                                          @Valid @RequestBody UpsertMatchResultRequest request) {
         RecalculationResult result = matchResultScoringService.upsertResultAndRecalculate(new UpsertMatchResultCommand(
                 matchId,

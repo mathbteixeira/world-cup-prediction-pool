@@ -49,7 +49,7 @@ class TournamentMatchControllerTest {
         TeamSummaryResponse home = new TeamSummaryResponse(UUID.randomUUID(), "Mexico", "MEX");
         TeamSummaryResponse away = new TeamSummaryResponse(UUID.randomUUID(), "South Africa", "RSA");
 
-        when(tournamentMatchService.listMatches(eq(tournamentId), any(), any(), any(), any(), any(), eq(false)))
+        when(tournamentMatchService.listMatches(eq(tournamentId), any(), any(), any(), any(), any(), any(), eq(false)))
                 .thenReturn(List.of(new MatchSummaryResponse(
                         matchId,
                         tournamentId,
@@ -87,6 +87,7 @@ class TournamentMatchControllerTest {
                 eq(MatchStatus.SCHEDULED),
                 eq("GROUP_STAGE"),
                 eq("A"),
+                eq("MEX"),
                 fromCaptor.capture(),
                 toCaptor.capture(),
                 eq(true)
@@ -96,6 +97,7 @@ class TournamentMatchControllerTest {
                         .param("status", "SCHEDULED")
                         .param("stage", "GROUP_STAGE")
                         .param("group", "A")
+                        .param("team", "MEX")
                         .param("from", "2026-06-11T00:00:00Z")
                         .param("to", "2026-06-12T00:00:00Z")
                         .param("predictableOnly", "true")

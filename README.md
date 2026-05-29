@@ -314,9 +314,11 @@ Example response:
 Discover match IDs:
 
 ```bash
-curl -sS "$BASE_URL/api/v1/tournaments/11111111-1111-1111-1111-111111111111/matches?group=A&predictableOnly=true" \
+curl -sS "$BASE_URL/api/v1/tournaments/11111111-1111-1111-1111-111111111111/matches?group=A&team=MEX&predictableOnly=true" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+Available filters: `status`, `stage`, `group`, `team` (home or away FIFA code), `from`, `to`, and `predictableOnly`.
 
 Example response:
 

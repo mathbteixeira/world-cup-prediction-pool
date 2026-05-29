@@ -47,6 +47,7 @@ public class TournamentMatchService {
                                                   MatchStatus status,
                                                   String stage,
                                                   String groupName,
+                                                  String teamFifaCode,
                                                   Instant from,
                                                   Instant to,
                                                   boolean predictableOnly) {
@@ -59,6 +60,7 @@ public class TournamentMatchService {
                 .filter(match -> status == null || match.getStatus() == status)
                 .filter(match -> matchesIgnoreCase(match.getStage(), stage))
                 .filter(match -> matchesIgnoreCase(match.getGroupName(), groupName))
+                .filter(match -> hasTeamFifaCode(match, teamFifaCode))
                 .filter(match -> from == null || !match.getKickoffAt().isBefore(from))
                 .filter(match -> to == null || !match.getKickoffAt().isAfter(to))
                 .filter(match -> !predictableOnly || match.canAcceptPredictionsAt(now))
@@ -80,6 +82,13 @@ public class TournamentMatchService {
 
     private boolean matchesIgnoreCase(String value, String filter) {
         return filter == null || filter.isBlank() || (value != null && value.equalsIgnoreCase(filter.trim()));
+    }
+
+    private boolean hasTeamFifaCode(Match match, String teamFifaCode) {
+        return teamFifaCode == null
+                || teamFifaCode.isBlank()
+                || matchesIgnoreCase(match.getHomeTeam().getFifaCode(), teamFifaCode)
+                || matchesIgnoreCase(match.getAwayTeam().getFifaCode(), teamFifaCode);
     }
 
     private MatchSummaryResponse toResponse(Match match, Optional<MatchResult> result, Instant now) {

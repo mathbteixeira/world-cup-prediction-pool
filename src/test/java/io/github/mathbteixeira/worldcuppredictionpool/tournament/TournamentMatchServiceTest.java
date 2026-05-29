@@ -114,6 +114,7 @@ class TournamentMatchServiceTest {
                 null,
                 null,
                 null,
+                null,
                 false
         );
 
@@ -139,6 +140,7 @@ class TournamentMatchServiceTest {
                 MatchStatus.SCHEDULED,
                 "group_stage",
                 "a",
+                null,
                 Instant.parse("2026-06-11T18:00:00Z"),
                 Instant.parse("2026-06-11T23:00:00Z"),
                 true
@@ -147,6 +149,48 @@ class TournamentMatchServiceTest {
         assertThat(response)
                 .extracting(MatchSummaryResponse::matchId)
                 .containsExactly(koreaCzechRepublic.getId());
+    }
+
+    @Test
+    void shouldFilterByHomeOrAwayTeamFifaCode() {
+        when(tournamentRepository.existsById(tournamentId)).thenReturn(true);
+        when(matchRepository.findAllByTournamentIdOrderByKickoffAtAsc(tournamentId))
+                .thenReturn(List.of(mexicoSouthAfrica, koreaCzechRepublic, canadaBosnia));
+        when(matchResultRepository.findAllByMatchIdIn(List.of(mexicoSouthAfrica.getId())))
+                .thenReturn(List.of());
+
+        List<MatchSummaryResponse> awayTeamResponse = tournamentMatchService.listMatches(
+                tournamentId,
+                null,
+                null,
+                null,
+                "rsa",
+                null,
+                null,
+                false
+        );
+
+        assertThat(awayTeamResponse)
+                .extracting(MatchSummaryResponse::matchId)
+                .containsExactly(mexicoSouthAfrica.getId());
+
+        when(matchResultRepository.findAllByMatchIdIn(List.of(canadaBosnia.getId())))
+                .thenReturn(List.of());
+
+        List<MatchSummaryResponse> homeTeamResponse = tournamentMatchService.listMatches(
+                tournamentId,
+                null,
+                null,
+                null,
+                "CAN",
+                null,
+                null,
+                false
+        );
+
+        assertThat(homeTeamResponse)
+                .extracting(MatchSummaryResponse::matchId)
+                .containsExactly(canadaBosnia.getId());
     }
 
     @Test
@@ -175,6 +219,7 @@ class TournamentMatchServiceTest {
                 null,
                 null,
                 null,
+                null,
                 false
         );
 
@@ -191,6 +236,7 @@ class TournamentMatchServiceTest {
 
         assertThatThrownBy(() -> tournamentMatchService.listMatches(
                 tournamentId,
+                null,
                 null,
                 null,
                 null,
