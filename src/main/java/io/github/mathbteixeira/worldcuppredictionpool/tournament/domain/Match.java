@@ -20,13 +20,19 @@ public class Match extends BaseEntity {
     @JoinColumn(name = "tournament_id", nullable = false)
     private Tournament tournament;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "home_team_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "home_team_id")
     private Team homeTeam;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "away_team_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "away_team_id")
     private Team awayTeam;
+
+    @Column(length = 40)
+    private String homePlaceholder;
+
+    @Column(length = 40)
+    private String awayPlaceholder;
 
     @Column(nullable = false)
     private Instant kickoffAt;
@@ -69,6 +75,20 @@ public class Match extends BaseEntity {
         this.status = status;
     }
 
+    public Match(Tournament tournament,
+                 String homePlaceholder,
+                 String awayPlaceholder,
+                 Instant kickoffAt,
+                 String stage,
+                 MatchStatus status) {
+        this.tournament = tournament;
+        this.homePlaceholder = homePlaceholder;
+        this.awayPlaceholder = awayPlaceholder;
+        this.kickoffAt = kickoffAt;
+        this.stage = stage;
+        this.status = status;
+    }
+
     public Tournament getTournament() {
         return tournament;
     }
@@ -79,6 +99,14 @@ public class Match extends BaseEntity {
 
     public Team getAwayTeam() {
         return awayTeam;
+    }
+
+    public String getHomePlaceholder() {
+        return homePlaceholder;
+    }
+
+    public String getAwayPlaceholder() {
+        return awayPlaceholder;
     }
 
     public Instant getKickoffAt() {
@@ -97,7 +125,18 @@ public class Match extends BaseEntity {
         return status;
     }
 
+    public boolean hasResolvedTeams() {
+        return homeTeam != null && awayTeam != null;
+    }
+
+    public void resolveParticipants(Team homeTeam, Team awayTeam) {
+        this.homeTeam = homeTeam;
+        this.awayTeam = awayTeam;
+        this.homePlaceholder = null;
+        this.awayPlaceholder = null;
+    }
+
     public boolean canAcceptPredictionsAt(Instant now) {
-        return now.isBefore(kickoffAt);
+        return hasResolvedTeams() && now.isBefore(kickoffAt);
     }
 }

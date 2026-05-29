@@ -194,6 +194,77 @@ class TournamentMatchServiceTest {
     }
 
     @Test
+    void shouldReturnPlaceholderParticipantsAndKeepPredictionsClosedUntilTeamsAreResolved() {
+        Match unresolvedKnockoutMatch = new Match(
+                tournament,
+                "1A",
+                "2B",
+                Instant.parse("2026-06-29T16:00:00Z"),
+                "ROUND_OF_32",
+                MatchStatus.SCHEDULED
+        );
+        setId(unresolvedKnockoutMatch, UUID.randomUUID());
+
+        when(tournamentRepository.existsById(tournamentId)).thenReturn(true);
+        when(matchRepository.findAllByTournamentIdOrderByKickoffAtAsc(tournamentId))
+                .thenReturn(List.of(unresolvedKnockoutMatch));
+        when(matchResultRepository.findAllByMatchIdIn(List.of(unresolvedKnockoutMatch.getId())))
+                .thenReturn(List.of());
+
+        List<MatchSummaryResponse> response = tournamentMatchService.listMatches(
+                tournamentId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false
+        );
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).homeTeam()).isNull();
+        assertThat(response.get(0).awayTeam()).isNull();
+        assertThat(response.get(0).homePlaceholder()).isEqualTo("1A");
+        assertThat(response.get(0).awayPlaceholder()).isEqualTo("2B");
+        assertThat(response.get(0).predictionOpen()).isFalse();
+    }
+
+    @Test
+    void shouldExcludeUnresolvedMatchesFromPredictableOnly() {
+        Match unresolvedKnockoutMatch = new Match(
+                tournament,
+                "1A",
+                "2B",
+                Instant.parse("2026-06-29T16:00:00Z"),
+                "ROUND_OF_32",
+                MatchStatus.SCHEDULED
+        );
+        setId(unresolvedKnockoutMatch, UUID.randomUUID());
+
+        when(tournamentRepository.existsById(tournamentId)).thenReturn(true);
+        when(matchRepository.findAllByTournamentIdOrderByKickoffAtAsc(tournamentId))
+                .thenReturn(List.of(koreaCzechRepublic, unresolvedKnockoutMatch));
+        when(matchResultRepository.findAllByMatchIdIn(List.of(koreaCzechRepublic.getId())))
+                .thenReturn(List.of());
+
+        List<MatchSummaryResponse> response = tournamentMatchService.listMatches(
+                tournamentId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true
+        );
+
+        assertThat(response)
+                .extracting(MatchSummaryResponse::matchId)
+                .containsExactly(koreaCzechRepublic.getId());
+    }
+
+    @Test
     void shouldIncludeResultWhenPresent() {
         MatchResult result = new MatchResult(
                 mexicoSouthAfrica,

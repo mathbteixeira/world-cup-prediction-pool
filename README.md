@@ -68,14 +68,16 @@ This split allows auditing and deterministic recomputation without sacrificing q
 class Match {
   UUID id;
   Tournament tournament;
-  Team homeTeam;
-  Team awayTeam;
+  Team homeTeam; // nullable until knockout participant is resolved
+  Team awayTeam; // nullable until knockout participant is resolved
+  String homePlaceholder; // optional, e.g. "1A"
+  String awayPlaceholder; // optional, e.g. "2B"
   Instant kickoffAt;
   String stage;
   String groupName; // optional single-letter group, such as "A"
 
   boolean canAcceptPredictionsAt(Instant now) {
-    return now.isBefore(kickoffAt);
+    return homeTeam != null && awayTeam != null && now.isBefore(kickoffAt);
   }
 }
 ```
@@ -338,6 +340,8 @@ Example response:
       "name": "South Africa",
       "fifaCode": "RSA"
     },
+    "homePlaceholder": null,
+    "awayPlaceholder": null,
     "kickoffAt": "2026-06-11T16:00:00Z",
     "stage": "GROUP_STAGE",
     "groupName": "A",
@@ -403,6 +407,8 @@ Example response:
         "name": "South Africa",
         "fifaCode": "RSA"
       },
+      "homePlaceholder": null,
+      "awayPlaceholder": null,
       "kickoffAt": "2026-06-11T16:00:00Z",
       "stage": "GROUP_STAGE",
       "groupName": "A",
@@ -487,6 +493,12 @@ Example response:
 - no frontend yet
 - no score-audit read endpoint yet
 - no async recalculation yet
+
+### Knockout match placeholders
+
+Knockout matches may be known before their participants are confirmed. These matches should be stored with nullable `homeTeam`/`awayTeam` and display placeholders such as `1A`, `2B`, or `3C/D/F/G/H`.
+
+Placeholders are intentionally stored on the match instead of creating fake rows in `teams`, keeping the team catalog limited to real national teams. A match is not open for predictions until both real team references are resolved.
 
 ---
 

@@ -10,6 +10,8 @@ public record MatchSummaryResponse(
         UUID tournamentId,
         TeamSummaryResponse homeTeam,
         TeamSummaryResponse awayTeam,
+        String homePlaceholder,
+        String awayPlaceholder,
         Instant kickoffAt,
         String stage,
         String groupName,

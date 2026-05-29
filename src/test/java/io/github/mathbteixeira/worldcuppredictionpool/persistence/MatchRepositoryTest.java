@@ -90,4 +90,60 @@ class MatchRepositoryTest {
                 .extracting(Match::getGroupName)
                 .isNull();
     }
+
+    @Test
+    void shouldPersistUnresolvedMatchParticipantsWithPlaceholders() {
+        Tournament tournament = tournamentRepository.save(new Tournament("World Cup", "world-cup-2026-knockout", "2026", TournamentStatus.OPEN));
+
+        Match match = matchRepository.save(new Match(
+                tournament,
+                "1A",
+                "2B",
+                Instant.parse("2026-06-29T20:00:00Z"),
+                "ROUND_OF_32",
+                MatchStatus.SCHEDULED
+        ));
+
+        assertThat(matchRepository.findById(match.getId()))
+                .isPresent()
+                .get()
+                .satisfies(saved -> {
+                    assertThat(saved.getHomeTeam()).isNull();
+                    assertThat(saved.getAwayTeam()).isNull();
+                    assertThat(saved.getHomePlaceholder()).isEqualTo("1A");
+                    assertThat(saved.getAwayPlaceholder()).isEqualTo("2B");
+                    assertThat(saved.hasResolvedTeams()).isFalse();
+                    assertThat(saved.canAcceptPredictionsAt(Instant.parse("2026-06-29T19:00:00Z"))).isFalse();
+                });
+    }
+
+    @Test
+    void shouldResolvePlaceholderParticipantsToRealTeams() {
+        Tournament tournament = tournamentRepository.save(new Tournament("World Cup", "world-cup-2026-resolve", "2026", TournamentStatus.OPEN));
+        Team home = teamRepository.save(new Team(tournament, "Brazil", "BRA"));
+        Team away = teamRepository.save(new Team(tournament, "Spain", "ESP"));
+        Match match = matchRepository.save(new Match(
+                tournament,
+                "1A",
+                "2B",
+                Instant.parse("2026-06-29T20:00:00Z"),
+                "ROUND_OF_32",
+                MatchStatus.SCHEDULED
+        ));
+
+        match.resolveParticipants(home, away);
+        matchRepository.save(match);
+
+        assertThat(matchRepository.findById(match.getId()))
+                .isPresent()
+                .get()
+                .satisfies(saved -> {
+                    assertThat(saved.getHomeTeam().getFifaCode()).isEqualTo("BRA");
+                    assertThat(saved.getAwayTeam().getFifaCode()).isEqualTo("ESP");
+                    assertThat(saved.getHomePlaceholder()).isNull();
+                    assertThat(saved.getAwayPlaceholder()).isNull();
+                    assertThat(saved.hasResolvedTeams()).isTrue();
+                    assertThat(saved.canAcceptPredictionsAt(Instant.parse("2026-06-29T19:00:00Z"))).isTrue();
+                });
+    }
 }
