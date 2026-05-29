@@ -74,7 +74,7 @@ class PredictionSubmissionServiceTest {
                 matchRepository,
                 matchResultRepository,
                 userAccountRepository,
-                Clock.fixed(Instant.parse("2026-06-01T12:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2027-06-01T12:00:00Z"), ZoneOffset.UTC));
     }
 
     @Test
@@ -94,17 +94,17 @@ class PredictionSubmissionServiceTest {
                 tournament,
                 home,
                 away,
-                Instant.parse("2026-06-01T11:00:00Z"),
+                Instant.parse("2027-06-01T11:00:00Z"),
                 "GROUP_STAGE",
                 "A",
                 MatchStatus.FINISHED
         );
         UUID matchId = UUID.randomUUID();
         setId(match, matchId);
-        Prediction prediction = new Prediction(pool, match, user, 2, 1, Instant.parse("2026-05-31T10:00:00Z"));
+        Prediction prediction = new Prediction(pool, match, user, 2, 1, Instant.parse("2027-05-31T10:00:00Z"));
         UUID predictionId = UUID.randomUUID();
         setId(prediction, predictionId);
-        MatchResult result = new MatchResult(match, 3, 1, null, null, true, Instant.parse("2026-06-01T15:00:00Z"), "checksum");
+        MatchResult result = new MatchResult(match, 3, 1, null, null, true, Instant.parse("2027-06-01T15:00:00Z"), "checksum");
 
         when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
         when(userAccountRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(user));
@@ -150,7 +150,7 @@ class PredictionSubmissionServiceTest {
                 tournament,
                 home,
                 away,
-                Instant.parse("2026-06-01T13:00:00Z"),
+                Instant.parse("2027-06-01T13:00:00Z"),
                 "GROUP_STAGE",
                 "A",
                 MatchStatus.SCHEDULED
@@ -159,16 +159,16 @@ class PredictionSubmissionServiceTest {
                 tournament,
                 away,
                 home,
-                Instant.parse("2026-06-01T11:00:00Z"),
+                Instant.parse("2027-06-01T11:00:00Z"),
                 "GROUP_STAGE",
                 "A",
                 MatchStatus.SCHEDULED
         );
         setId(futureMatch, UUID.randomUUID());
         setId(closedMatch, UUID.randomUUID());
-        Prediction ownFuturePrediction = new Prediction(pool, futureMatch, user, 2, 1, Instant.parse("2026-05-31T10:00:00Z"));
-        Prediction otherFuturePrediction = new Prediction(pool, futureMatch, otherUser, 1, 0, Instant.parse("2026-05-31T10:01:00Z"));
-        Prediction otherClosedPrediction = new Prediction(pool, closedMatch, otherUser, 0, 1, Instant.parse("2026-05-31T10:02:00Z"));
+        Prediction ownFuturePrediction = new Prediction(pool, futureMatch, user, 2, 1, Instant.parse("2027-05-31T10:00:00Z"));
+        Prediction otherFuturePrediction = new Prediction(pool, futureMatch, otherUser, 1, 0, Instant.parse("2027-05-31T10:01:00Z"));
+        Prediction otherClosedPrediction = new Prediction(pool, closedMatch, otherUser, 0, 1, Instant.parse("2027-05-31T10:02:00Z"));
         setId(ownFuturePrediction, UUID.randomUUID());
         setId(otherFuturePrediction, UUID.randomUUID());
         setId(otherClosedPrediction, UUID.randomUUID());
@@ -226,7 +226,7 @@ class PredictionSubmissionServiceTest {
                 tournament,
                 home,
                 away,
-                Instant.parse("2026-06-01T11:00:00Z"),
+                Instant.parse("2027-06-01T11:00:00Z"),
                 "GROUP",
                 MatchStatus.SCHEDULED
         );
@@ -258,7 +258,7 @@ class PredictionSubmissionServiceTest {
                 tournament,
                 home,
                 away,
-                Instant.parse("2026-06-01T13:00:00Z"),
+                Instant.parse("2027-06-01T13:00:00Z"),
                 "GROUP",
                 MatchStatus.SCHEDULED
         );
@@ -293,7 +293,7 @@ class PredictionSubmissionServiceTest {
                 otherTournament,
                 home,
                 away,
-                Instant.parse("2026-06-01T13:00:00Z"),
+                Instant.parse("2027-06-01T13:00:00Z"),
                 "GROUP",
                 MatchStatus.SCHEDULED
         );
