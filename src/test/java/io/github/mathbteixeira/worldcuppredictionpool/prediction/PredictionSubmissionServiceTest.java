@@ -94,7 +94,7 @@ class PredictionSubmissionServiceTest {
                 tournament,
                 home,
                 away,
-                Instant.parse("2026-06-01T13:00:00Z"),
+                Instant.parse("2026-06-01T11:00:00Z"),
                 "GROUP_STAGE",
                 "A",
                 MatchStatus.FINISHED
