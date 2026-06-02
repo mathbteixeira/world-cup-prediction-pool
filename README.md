@@ -68,14 +68,16 @@ This split allows auditing and deterministic recomputation without sacrificing q
 class Match {
   UUID id;
   Tournament tournament;
-  Team homeTeam;
-  Team awayTeam;
+  Team homeTeam; // nullable until knockout participant is resolved
+  Team awayTeam; // nullable until knockout participant is resolved
+  String homePlaceholder; // optional, e.g. "1A"
+  String awayPlaceholder; // optional, e.g. "2B"
   Instant kickoffAt;
   String stage;
   String groupName; // optional single-letter group, such as "A"
 
   boolean canAcceptPredictionsAt(Instant now) {
-    return now.isBefore(kickoffAt);
+    return homeTeam != null && awayTeam != null && now.isBefore(kickoffAt);
   }
 }
 ```
@@ -192,6 +194,7 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `GET /api/v1/tournaments/{tournamentId}/matches`
 - `PUT /api/v1/pools/{poolId}/matches/{matchId}/prediction`
 - `GET /api/v1/pools/{poolId}/predictions`
+- `PUT /api/v1/admin/matches/{matchId}/participants`
 - `PUT /api/v1/admin/matches/{matchId}/result`
 - `GET /api/v1/pools/{poolId}/leaderboard`
 
@@ -338,6 +341,8 @@ Example response:
       "name": "South Africa",
       "fifaCode": "RSA"
     },
+    "homePlaceholder": null,
+    "awayPlaceholder": null,
     "kickoffAt": "2026-06-11T16:00:00Z",
     "stage": "GROUP_STAGE",
     "groupName": "A",
@@ -403,6 +408,8 @@ Example response:
         "name": "South Africa",
         "fifaCode": "RSA"
       },
+      "homePlaceholder": null,
+      "awayPlaceholder": null,
       "kickoffAt": "2026-06-11T16:00:00Z",
       "stage": "GROUP_STAGE",
       "groupName": "A",
@@ -487,6 +494,24 @@ Example response:
 - no frontend yet
 - no score-audit read endpoint yet
 - no async recalculation yet
+
+### Knockout match placeholders
+
+Knockout matches may be known before their participants are confirmed. These matches should be stored with nullable `homeTeam`/`awayTeam` and display placeholders such as `1A`, `2B`, or `3C/D/F/G/H`.
+
+Placeholders are intentionally stored on the match instead of creating fake rows in `teams`, keeping the team catalog limited to real national teams. A match is not open for predictions until both real team references are resolved.
+
+Admins can resolve placeholder participants once teams qualify. Already resolved matches are not overwritten by this endpoint, avoiding accidental changes after predictions may exist:
+
+```bash
+curl -sS -X PUT "$BASE_URL/api/v1/admin/matches/33333333-3333-3333-3333-333333333333/participants" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "homeTeamId": "77777777-7777-7777-7777-777777777777",
+    "awayTeamId": "88888888-8888-8888-8888-888888888888"
+  }'
+```
 
 ---
 

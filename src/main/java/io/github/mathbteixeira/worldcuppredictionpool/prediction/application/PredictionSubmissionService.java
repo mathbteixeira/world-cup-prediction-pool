@@ -154,6 +154,8 @@ public class PredictionSubmissionService {
                 match.getTournament().getId(),
                 toTeamResponse(match.getHomeTeam()),
                 toTeamResponse(match.getAwayTeam()),
+                match.getHomePlaceholder(),
+                match.getAwayPlaceholder(),
                 match.getKickoffAt(),
                 match.getStage(),
                 match.getGroupName(),
@@ -164,6 +166,9 @@ public class PredictionSubmissionService {
     }
 
     private TeamSummaryResponse toTeamResponse(Team team) {
+        if (team == null) {
+            return null;
+        }
         return new TeamSummaryResponse(team.getId(), team.getName(), team.getFifaCode());
     }
 

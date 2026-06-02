@@ -113,6 +113,8 @@ class PredictionControllerTest {
                                 UUID.randomUUID(),
                                 new TeamSummaryResponse(UUID.randomUUID(), "Brazil", "BRA"),
                                 new TeamSummaryResponse(UUID.randomUUID(), "Spain", "ESP"),
+                                null,
+                                null,
                                 Instant.parse("2026-06-10T10:00:00Z"),
                                 "GROUP_STAGE",
                                 "A",

@@ -55,6 +55,8 @@ class TournamentMatchControllerTest {
                         tournamentId,
                         home,
                         away,
+                        null,
+                        null,
                         Instant.parse("2026-06-11T16:00:00Z"),
                         "GROUP_STAGE",
                         "A",
@@ -70,6 +72,8 @@ class TournamentMatchControllerTest {
                 .andExpect(jsonPath("$[0].tournamentId").value(tournamentId.toString()))
                 .andExpect(jsonPath("$[0].homeTeam.fifaCode").value("MEX"))
                 .andExpect(jsonPath("$[0].awayTeam.fifaCode").value("RSA"))
+                .andExpect(jsonPath("$[0].homePlaceholder").doesNotExist())
+                .andExpect(jsonPath("$[0].awayPlaceholder").doesNotExist())
                 .andExpect(jsonPath("$[0].stage").value("GROUP_STAGE"))
                 .andExpect(jsonPath("$[0].groupName").value("A"))
                 .andExpect(jsonPath("$[0].status").value("SCHEDULED"))

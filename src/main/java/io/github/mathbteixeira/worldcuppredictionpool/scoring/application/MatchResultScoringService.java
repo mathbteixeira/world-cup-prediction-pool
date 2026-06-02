@@ -81,6 +81,9 @@ public class MatchResultScoringService {
     public RecalculationResult upsertResultAndRecalculate(UpsertMatchResultCommand command) {
         Match match = matchRepository.findById(command.matchId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Match not found"));
+        if (!match.hasResolvedTeams()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Match participants are not resolved");
+        }
 
         Instant now = Instant.now(clock);
         String checksum = checksumFor(command);

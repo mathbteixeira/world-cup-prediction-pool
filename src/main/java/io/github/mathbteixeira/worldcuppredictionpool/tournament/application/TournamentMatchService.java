@@ -87,8 +87,8 @@ public class TournamentMatchService {
     private boolean hasTeamFifaCode(Match match, String teamFifaCode) {
         return teamFifaCode == null
                 || teamFifaCode.isBlank()
-                || matchesIgnoreCase(match.getHomeTeam().getFifaCode(), teamFifaCode)
-                || matchesIgnoreCase(match.getAwayTeam().getFifaCode(), teamFifaCode);
+                || (match.getHomeTeam() != null && matchesIgnoreCase(match.getHomeTeam().getFifaCode(), teamFifaCode))
+                || (match.getAwayTeam() != null && matchesIgnoreCase(match.getAwayTeam().getFifaCode(), teamFifaCode));
     }
 
     private MatchSummaryResponse toResponse(Match match, Optional<MatchResult> result, Instant now) {
@@ -97,6 +97,8 @@ public class TournamentMatchService {
                 match.getTournament().getId(),
                 toTeamResponse(match.getHomeTeam()),
                 toTeamResponse(match.getAwayTeam()),
+                match.getHomePlaceholder(),
+                match.getAwayPlaceholder(),
                 match.getKickoffAt(),
                 match.getStage(),
                 match.getGroupName(),
@@ -107,6 +109,9 @@ public class TournamentMatchService {
     }
 
     private TeamSummaryResponse toTeamResponse(Team team) {
+        if (team == null) {
+            return null;
+        }
         return new TeamSummaryResponse(team.getId(), team.getName(), team.getFifaCode());
     }
 
