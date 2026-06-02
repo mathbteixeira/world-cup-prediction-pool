@@ -58,3 +58,5 @@ The frontend creates pools against the seeded World Cup 2026 tournament id:
 Admin result updates are shown only when `/api/v1/auth/me` returns role `ADMIN`. Local self-registration creates normal `USER` accounts, so admin behavior requires an admin account in the backend database or test setup.
 
 Knockout matches can now return unresolved participants with `homeTeam`/`awayTeam` as `null` and placeholder labels such as `1A` or `2B`. The frontend displays those placeholders, keeps prediction and result controls closed until the backend marks the match resolved, and exposes ADMIN participant resolution through `PUT /api/v1/admin/matches/{matchId}/participants`.
+
+Official match results are tournament-wide, not pool-specific. ADMIN result updates live in the `Tournament Admin` tab and show the backend recalculation impact across affected pools.

@@ -214,11 +214,11 @@ export function PoolDetailPage() {
         {isAdmin ? (
           <Badge variant="warning" className="gap-1">
             <Shield className="h-3 w-3" />
-            Admin result controls enabled
+            Tournament admin available
           </Badge>
         ) : (
           <p className="max-w-sm text-sm text-muted-foreground">
-            Admin result updates are hidden because this account is not an ADMIN user.
+            Tournament-wide result and participant updates are hidden because this account is not an ADMIN user.
           </p>
         )}
       </section>
@@ -228,6 +228,7 @@ export function PoolDetailPage() {
           <TabsTrigger value="matches">Matches</TabsTrigger>
           <TabsTrigger value="predictions">Predictions</TabsTrigger>
           <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
+          {isAdmin ? <TabsTrigger value="admin">Tournament Admin</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="matches">
@@ -312,12 +313,6 @@ export function PoolDetailPage() {
                 {matches.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No matches match these filters.</p> : null}
               </CardContent>
             </Card>
-            {isAdmin ? (
-              <div className="space-y-4">
-                <AdminParticipantsCard matches={matches} teams={teams} form={participantForm} mutation={resolveParticipants} />
-                <AdminResultCard matches={matches} form={resultForm} mutation={upsertResult} recalculation={recalculation} />
-              </div>
-            ) : null}
           </div>
         </TabsContent>
 
@@ -361,6 +356,22 @@ export function PoolDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isAdmin ? (
+          <TabsContent value="admin">
+            <div className="space-y-4">
+              <Alert>
+                <AlertTitle>Tournament-wide operations</AlertTitle>
+                <AlertDescription>
+                  Official match results and participant resolutions apply to every pool using this tournament. Recalculation
+                  reports how many predictions were scored and how many pools were affected.
+                </AlertDescription>
+              </Alert>
+              <AdminParticipantsCard matches={matches} teams={teams} form={participantForm} mutation={resolveParticipants} />
+              <AdminResultCard matches={matches} form={resultForm} mutation={upsertResult} recalculation={recalculation} />
+            </div>
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   );
@@ -464,8 +475,8 @@ function AdminParticipantsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Admin participant resolution</CardTitle>
-        <CardDescription>Resolve placeholder knockout participants before predictions and official results can open.</CardDescription>
+        <CardTitle>Tournament participant resolution</CardTitle>
+        <CardDescription>Resolve placeholder knockout participants for this tournament before predictions and official results can open.</CardDescription>
       </CardHeader>
       <CardContent>
         {unresolvedMatches.length === 0 ? (
@@ -536,8 +547,8 @@ function AdminResultCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Admin result update</CardTitle>
-        <CardDescription>Upsert an official result and inspect the idempotent recalculation response.</CardDescription>
+        <CardTitle>Tournament result update</CardTitle>
+        <CardDescription>Upsert an official tournament result and inspect the idempotent recalculation response across affected pools.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="grid gap-4 lg:grid-cols-[1.6fr_repeat(4,0.6fr)_auto] lg:items-end">
