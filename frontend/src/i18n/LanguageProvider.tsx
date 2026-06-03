@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
-type Language = "pt" | "en";
+export type Language = "pt" | "en";
 
 const STORAGE_KEY = "wcpp.language";
 
@@ -99,6 +99,9 @@ const messages = {
     selectMatch: "Select match",
     selectTeam: "Select team",
     selectFlag: "All flags",
+    allGroups: "All groups",
+    kickoffSortAsc: "Kickoff ↑",
+    kickoffSortDesc: "Kickoff ↓",
     loadingPools: "Loading pools...",
     seededTournamentId: "Seeded tournament id",
     tournament: "Tournament",
@@ -201,6 +204,9 @@ const messages = {
     selectMatch: "Selecione o jogo",
     selectTeam: "Selecione a seleção",
     selectFlag: "Todas as bandeiras",
+    allGroups: "Todos os grupos",
+    kickoffSortAsc: "Início ↑",
+    kickoffSortDesc: "Início ↓",
     loadingPools: "Carregando bolões...",
     seededTournamentId: "ID do torneio cadastrado",
     tournament: "Torneio",

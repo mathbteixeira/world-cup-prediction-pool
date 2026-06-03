@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
-import { ArrowLeft, CheckCircle2, Clipboard, Filter, RefreshCw, Shield } from "lucide-react";
-import { api } from "../api/client";
+import { ArrowLeft, ArrowUpDown, CheckCircle2, Clipboard, Filter, RefreshCw, Shield } from "lucide-react";
+import { api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
 import type { MatchSummary, PoolPrediction, RecalculationResponse, TeamSummary } from "../api/types";
 import { useAuth } from "../auth/AuthProvider";
 import { Badge } from "../components/ui/badge";
@@ -21,6 +21,13 @@ import { flagForFifaCode } from "../lib/flags";
 import { formatDateTime } from "../lib/utils";
 
 type ScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
+type MatchSortDirection = "asc" | "desc";
+type MatchFiltersState = {
+  group: string;
+  teams: string[];
+  predictableOnly: boolean;
+  sortDirection: MatchSortDirection;
+};
 
 const resultSchema = z.object({
   matchId: z.string().min(1, "Choose a match"),
@@ -44,25 +51,20 @@ type ParticipantForm = z.infer<typeof participantSchema>;
 export function PoolDetailPage() {
   const { poolId = "" } = useParams();
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState({ group: "", team: "", predictableOnly: false });
+  const [filters, setFilters] = useState<MatchFiltersState>({
+    group: "",
+    teams: [],
+    predictableOnly: false,
+    sortDirection: "asc",
+  });
   const [drafts, setDrafts] = useState<ScoreDraft>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [recalculation, setRecalculation] = useState<RecalculationResponse | null>(null);
 
   const poolQuery = useQuery({ queryKey: ["pool", poolId], queryFn: () => api.getPool(poolId), enabled: Boolean(poolId) });
   const tournamentId = poolQuery.data?.tournamentId;
-  const matchesQuery = useQuery({
-    queryKey: ["matches", tournamentId, filters],
-    queryFn: () =>
-      api.listMatches(tournamentId!, {
-        group: filters.group,
-        team: filters.team,
-        predictableOnly: filters.predictableOnly,
-      }),
-    enabled: Boolean(tournamentId),
-  });
   const allMatchesQuery = useQuery({
     queryKey: ["matches", tournamentId, "all"],
     queryFn: () => api.listMatches(tournamentId!, {}),
@@ -145,9 +147,10 @@ export function PoolDetailPage() {
       participantForm.setError("root", { message: error instanceof Error ? error.message : "Participant resolution failed" }),
   });
 
-  const matches = matchesQuery.data ?? [];
-  const allMatches = allMatchesQuery.data ?? matches;
+  const allMatches = allMatchesQuery.data ?? [];
   const teams = useMemo(() => uniqueTeams(allMatches), [allMatches]);
+  const groups = useMemo(() => uniqueGroups(allMatches), [allMatches]);
+  const matches = useMemo(() => filterAndSortMatches(allMatches, filters), [allMatches, filters]);
 
   function draftFor(match: MatchSummary) {
     const existing = myPredictions.get(match.matchId);
@@ -195,6 +198,7 @@ export function PoolDetailPage() {
 
   const pool = poolQuery.data;
   const isAdmin = user?.role === "ADMIN";
+  const tournamentName = pool.tournamentId === WORLD_CUP_2026_TOURNAMENT_ID ? t("worldCup2026") : pool.tournamentId.slice(0, 8);
 
   return (
     <div className="space-y-6">
@@ -217,7 +221,7 @@ export function PoolDetailPage() {
               <Clipboard className="h-3 w-3" />
               {pool.inviteCode}
             </Badge>
-            <Badge variant="outline">{t("tournament")} {pool.tournamentId.slice(0, 8)}</Badge>
+            <Badge variant="outline">{t("tournament")} {tournamentName}</Badge>
           </div>
         </div>
         {isAdmin ? (
@@ -242,7 +246,7 @@ export function PoolDetailPage() {
 
         <TabsContent value="matches">
           <div className="space-y-4">
-            <MatchFilters filters={filters} teams={teams} onChange={setFilters} />
+            <MatchFilters filters={filters} groups={groups} teams={teams} onChange={setFilters} />
             {successMessage ? (
               <Alert>
                 <AlertDescription>{successMessage}</AlertDescription>
@@ -258,7 +262,22 @@ export function PoolDetailPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t("match")}</TableHead>
-                      <TableHead>{t("kickoff")}</TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2"
+                          onClick={() =>
+                            setFilters((current) => ({
+                              ...current,
+                              sortDirection: current.sortDirection === "asc" ? "desc" : "asc",
+                            }))
+                          }
+                        >
+                          <ArrowUpDown className="h-4 w-4" />
+                          {filters.sortDirection === "asc" ? t("kickoffSortAsc") : t("kickoffSortDesc")}
+                        </Button>
+                      </TableHead>
                       <TableHead>{t("status")}</TableHead>
                       <TableHead>{t("result")}</TableHead>
                       <TableHead className="min-w-56">{t("myPrediction")}</TableHead>
@@ -283,7 +302,7 @@ export function PoolDetailPage() {
                               {!hasResolvedParticipants(match) ? <Badge variant="warning">{t("unresolved")}</Badge> : null}
                             </div>
                           </TableCell>
-                          <TableCell>{formatDateTime(match.kickoffAt)}</TableCell>
+                          <TableCell>{formatDateTime(match.kickoffAt, language)}</TableCell>
                           <TableCell>
                             <Badge variant={match.predictionOpen ? "success" : "muted"}>
                               {match.predictionOpen ? t("open") : match.status}
@@ -358,7 +377,7 @@ export function PoolDetailPage() {
                         <TableCell className="font-semibold">#{entry.rankPosition}</TableCell>
                         <TableCell>{entry.username}</TableCell>
                         <TableCell>{entry.totalPoints}</TableCell>
-                        <TableCell>{formatDateTime(entry.recalculatedAt)}</TableCell>
+                        <TableCell>{formatDateTime(entry.recalculatedAt, language)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -377,8 +396,8 @@ export function PoolDetailPage() {
                   {t("tournamentWideOpsDesc")}
                 </AlertDescription>
               </Alert>
-              <AdminParticipantsCard matches={matches} teams={teams} form={participantForm} mutation={resolveParticipants} />
-              <AdminResultCard matches={matches} form={resultForm} mutation={upsertResult} recalculation={recalculation} />
+              <AdminParticipantsCard matches={allMatches} teams={teams} form={participantForm} mutation={resolveParticipants} />
+              <AdminResultCard matches={allMatches} form={resultForm} mutation={upsertResult} recalculation={recalculation} />
             </div>
           </TabsContent>
         ) : null}
@@ -389,43 +408,69 @@ export function PoolDetailPage() {
 
 function MatchFilters({
   filters,
+  groups,
   teams,
   onChange,
 }: {
-  filters: { group: string; team: string; predictableOnly: boolean };
+  filters: MatchFiltersState;
+  groups: string[];
   teams: TeamSummary[];
-  onChange: (filters: { group: string; team: string; predictableOnly: boolean }) => void;
+  onChange: (filters: MatchFiltersState) => void;
 }) {
   const { t } = useLanguage();
+  const selectedTeamLabel =
+    filters.teams.length === 0
+      ? t("selectFlag")
+      : teams
+          .filter((team) => filters.teams.includes(team.fifaCode))
+          .map((team) => `${flagForFifaCode(team.fifaCode)} ${team.fifaCode}`)
+          .join(", ");
+
+  function toggleTeam(fifaCode: string) {
+    onChange({
+      ...filters,
+      teams: filters.teams.includes(fifaCode)
+        ? filters.teams.filter((selected) => selected !== fifaCode)
+        : [...filters.teams, fifaCode],
+    });
+  }
 
   return (
     <Card>
-      <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center">
+      <CardContent className="flex flex-col gap-3 pt-5 lg:flex-row lg:items-start">
         <Filter className="hidden h-4 w-4 text-muted-foreground sm:block" />
-        <Input
-          placeholder={t("group")}
-          className="sm:w-32"
-          value={filters.group}
-          onChange={(event) => onChange({ ...filters, group: event.target.value.toUpperCase() })}
-        />
         <select
-          className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm sm:w-56"
-          value={filters.team}
-          onChange={(event) => onChange({ ...filters, team: event.target.value })}
+          aria-label={t("group")}
+          className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm lg:w-40"
+          value={filters.group}
+          onChange={(event) => onChange({ ...filters, group: event.target.value })}
         >
-          <option value="">{t("selectFlag")}</option>
-          {teams.map((team) => (
-            <option key={team.id} value={team.fifaCode}>
-              {flagForFifaCode(team.fifaCode)} {team.fifaCode} - {team.name}
+          <option value="">{t("allGroups")}</option>
+          {groups.map((group) => (
+            <option key={group} value={group}>
+              {t("group")} {group}
             </option>
           ))}
         </select>
-        <Input
-          placeholder={t("teamCode")}
-          className="sm:w-48"
-          value={filters.team}
-          onChange={(event) => onChange({ ...filters, team: event.target.value.toUpperCase() })}
-        />
+        <details className="relative lg:w-80">
+          <summary className="flex h-10 cursor-pointer list-none items-center rounded-md border border-input bg-white px-3 text-sm shadow-sm">
+            <span className="truncate">{selectedTeamLabel}</span>
+          </summary>
+          <div className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-md border bg-white p-2 shadow-lg">
+            {teams.map((team) => (
+              <label key={team.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-muted">
+                <input
+                  type="checkbox"
+                  checked={filters.teams.includes(team.fifaCode)}
+                  onChange={() => toggleTeam(team.fifaCode)}
+                />
+                <span>{flagForFifaCode(team.fifaCode)}</span>
+                <span className="font-mono">{team.fifaCode}</span>
+                <span className="truncate text-muted-foreground">{team.name}</span>
+              </label>
+            ))}
+          </div>
+        </details>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -440,7 +485,7 @@ function MatchFilters({
 }
 
 function PredictionsTable({ predictions }: { predictions: PoolPrediction[] }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
 
   return (
     <Card>
@@ -456,6 +501,7 @@ function PredictionsTable({ predictions }: { predictions: PoolPrediction[] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("user")}</TableHead>
+                <TableHead>{t("group")}</TableHead>
                 <TableHead>{t("match")}</TableHead>
                 <TableHead>{t("prediction")}</TableHead>
                 <TableHead>{t("submitted")}</TableHead>
@@ -470,6 +516,7 @@ function PredictionsTable({ predictions }: { predictions: PoolPrediction[] }) {
                       {prediction.mine ? <Badge variant="success">{t("mine")}</Badge> : null}
                     </div>
                   </TableCell>
+                  <TableCell>{prediction.match.groupName ?? "-"}</TableCell>
                   <TableCell>
                     {participantFlag(prediction.match, "home")} {participantCode(prediction.match, "home")} vs{" "}
                     {participantFlag(prediction.match, "away")} {participantCode(prediction.match, "away")}
@@ -477,7 +524,7 @@ function PredictionsTable({ predictions }: { predictions: PoolPrediction[] }) {
                   <TableCell className="font-semibold">
                     {prediction.homeScore}-{prediction.awayScore}
                   </TableCell>
-                  <TableCell>{formatDateTime(prediction.submittedAt)}</TableCell>
+                  <TableCell>{formatDateTime(prediction.submittedAt, language)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -499,7 +546,7 @@ function AdminParticipantsCard({
   form: UseFormReturn<ParticipantForm>;
   mutation: UseMutationResult<MatchSummary, Error, ParticipantForm>;
 }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const unresolvedMatches = matches.filter((match) => !hasResolvedParticipants(match));
 
   return (
@@ -523,7 +570,7 @@ function AdminParticipantsCard({
                 <option value="">{t("selectMatch")}</option>
                 {unresolvedMatches.map((match) => (
                   <option key={match.matchId} value={match.matchId}>
-                    {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt)}
+                    {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt, language)}
                   </option>
                 ))}
               </select>
@@ -549,7 +596,7 @@ function TeamSelect({
   teams,
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement> & { teams: TeamSummary[] }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
 
   return (
     <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...props}>
@@ -574,7 +621,7 @@ function AdminResultCard({
   mutation: UseMutationResult<RecalculationResponse, Error, ResultForm>;
   recalculation: RecalculationResponse | null;
 }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const resolvedMatches = matches.filter(hasResolvedParticipants);
 
   return (
@@ -595,7 +642,7 @@ function AdminResultCard({
               <option value="">{t("selectMatch")}</option>
               {resolvedMatches.map((match) => (
                 <option key={match.matchId} value={match.matchId}>
-                  {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt)}
+                  {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt, language)}
                 </option>
               ))}
             </select>
@@ -666,4 +713,27 @@ function uniqueTeams(matches: MatchSummary[]) {
     if (match.awayTeam) byId.set(match.awayTeam.id, match.awayTeam);
   }
   return [...byId.values()].sort((a, b) => a.fifaCode.localeCompare(b.fifaCode));
+}
+
+function uniqueGroups(matches: MatchSummary[]) {
+  return [...new Set(matches.map((match) => match.groupName).filter((group): group is string => Boolean(group)))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function filterAndSortMatches(matches: MatchSummary[], filters: MatchFiltersState) {
+  const selectedTeams = new Set(filters.teams);
+  return matches
+    .filter((match) => {
+      if (filters.group && match.groupName !== filters.group) return false;
+      if (filters.predictableOnly && !match.predictionOpen) return false;
+      if (selectedTeams.size === 0) return true;
+
+      const homeCode = match.homeTeam?.fifaCode;
+      const awayCode = match.awayTeam?.fifaCode;
+      return Boolean((homeCode && selectedTeams.has(homeCode)) || (awayCode && selectedTeams.has(awayCode)));
+    })
+    .sort((a, b) => {
+      const comparison = new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime();
+      return filters.sortDirection === "asc" ? comparison : -comparison;
+    });
 }
