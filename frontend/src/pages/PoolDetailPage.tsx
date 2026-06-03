@@ -672,11 +672,26 @@ function AdminResultCard({
           <Alert className="mt-4">
             <CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-700" />
             <AlertTitle className="inline">{t("recalculationComplete")}</AlertTitle>
-            <AlertDescription className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <AlertDescription className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <span>{t("scoredPredictions")}: {recalculation.scoredPredictions}</span>
               <span>{t("affectedPools")}: {recalculation.affectedPools}</span>
               <span>{t("idempotentReplay")}: {String(recalculation.idempotentReplay)}</span>
-              <span className="font-mono">{t("checksum")}: {recalculation.resultChecksum}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <span>{t("checksum")}:</span>
+                <code className="min-w-0 truncate rounded bg-muted px-1.5 py-0.5 font-mono text-xs" title={recalculation.resultChecksum}>
+                  {shortChecksum(recalculation.resultChecksum)}
+                </code>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  title={recalculation.resultChecksum}
+                  onClick={() => navigator.clipboard?.writeText(recalculation.resultChecksum)}
+                >
+                  <Clipboard className="h-3.5 w-3.5" />
+                </Button>
+              </span>
             </AlertDescription>
           </Alert>
         ) : null}
@@ -704,6 +719,10 @@ function participantCode(match: MatchSummary, side: "home" | "away") {
 function participantFlag(match: MatchSummary, side: "home" | "away") {
   const team = side === "home" ? match.homeTeam : match.awayTeam;
   return team ? flagForFifaCode(team.fifaCode) : "🏳️";
+}
+
+function shortChecksum(checksum: string) {
+  return `${checksum.slice(0, 8)}...${checksum.slice(-8)}`;
 }
 
 function uniqueTeams(matches: MatchSummary[]) {
