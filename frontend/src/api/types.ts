@@ -49,7 +49,7 @@ export type MatchSummary = {
   kickoffAt: string;
   stage: string;
   groupName: string | null;
-  status: "SCHEDULED" | "IN_PROGRESS" | "FINAL";
+  status: "SCHEDULED" | "LIVE" | "FINISHED" | "CANCELLED";
   result: MatchResult | null;
   predictionOpen: boolean;
 };

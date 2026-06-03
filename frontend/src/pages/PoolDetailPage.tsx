@@ -16,6 +16,8 @@ import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { FormField } from "../components/FormField";
+import { useLanguage } from "../i18n/LanguageProvider";
+import { flagForFifaCode } from "../lib/flags";
 import { formatDateTime } from "../lib/utils";
 
 type ScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
@@ -42,6 +44,7 @@ type ParticipantForm = z.infer<typeof participantSchema>;
 export function PoolDetailPage() {
   const { poolId = "" } = useParams();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState({ group: "", team: "", predictableOnly: false });
   const [drafts, setDrafts] = useState<ScoreDraft>({});
@@ -58,6 +61,11 @@ export function PoolDetailPage() {
         team: filters.team,
         predictableOnly: filters.predictableOnly,
       }),
+    enabled: Boolean(tournamentId),
+  });
+  const allMatchesQuery = useQuery({
+    queryKey: ["matches", tournamentId, "all"],
+    queryFn: () => api.listMatches(tournamentId!, {}),
     enabled: Boolean(tournamentId),
   });
   const predictionsQuery = useQuery({
@@ -83,7 +91,7 @@ export function PoolDetailPage() {
     mutationFn: ({ matchId, homeScore, awayScore }: { matchId: string; homeScore: number; awayScore: number }) =>
       api.submitPrediction(poolId, matchId, { homeScore, awayScore }),
     onSuccess: async () => {
-      setSuccessMessage("Prediction saved");
+      setSuccessMessage(t("predictionSaved"));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["predictions", poolId] }),
         queryClient.invalidateQueries({ queryKey: ["leaderboard", poolId] }),
@@ -138,7 +146,8 @@ export function PoolDetailPage() {
   });
 
   const matches = matchesQuery.data ?? [];
-  const teams = useMemo(() => uniqueTeams(matches), [matches]);
+  const allMatches = allMatchesQuery.data ?? matches;
+  const teams = useMemo(() => uniqueTeams(allMatches), [allMatches]);
 
   function draftFor(match: MatchSummary) {
     const existing = myPredictions.get(match.matchId);
@@ -165,21 +174,21 @@ export function PoolDetailPage() {
     const homeScore = Number(draft.homeScore);
     const awayScore = Number(draft.awayScore);
     if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
-      setSuccessMessage("Scores must be non-negative whole numbers");
+      setSuccessMessage(t("invalidScores"));
       return;
     }
     submitPrediction.mutate({ matchId: match.matchId, homeScore, awayScore });
   }
 
   if (poolQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading pool...</p>;
+    return <p className="text-sm text-muted-foreground">{t("loadingPool")}</p>;
   }
 
   if (poolQuery.isError || !poolQuery.data) {
     return (
       <Alert className="border-destructive/30">
-        <AlertTitle>Pool unavailable</AlertTitle>
-        <AlertDescription>{poolQuery.error instanceof Error ? poolQuery.error.message : "Could not load pool"}</AlertDescription>
+        <AlertTitle>{t("poolUnavailable")}</AlertTitle>
+        <AlertDescription>{poolQuery.error instanceof Error ? poolQuery.error.message : t("couldNotLoadPool")}</AlertDescription>
       </Alert>
     );
   }
@@ -192,7 +201,7 @@ export function PoolDetailPage() {
       <Button asChild variant="ghost" size="sm">
         <Link to="/">
           <ArrowLeft className="h-4 w-4" />
-          Dashboard
+          {t("dashboard")}
         </Link>
       </Button>
 
@@ -202,38 +211,38 @@ export function PoolDetailPage() {
             <h1 className="text-2xl font-semibold">{pool.name}</h1>
             <Badge variant={pool.membershipRole === "OWNER" ? "success" : "secondary"}>{pool.membershipRole}</Badge>
           </div>
-          <p className="max-w-3xl text-sm text-muted-foreground">{pool.description || "No description provided."}</p>
+          <p className="max-w-3xl text-sm text-muted-foreground">{pool.description || t("noDescription")}</p>
           <div className="flex flex-wrap gap-2 text-sm">
             <Badge variant="outline" className="gap-1">
               <Clipboard className="h-3 w-3" />
               {pool.inviteCode}
             </Badge>
-            <Badge variant="outline">Tournament {pool.tournamentId.slice(0, 8)}</Badge>
+            <Badge variant="outline">{t("tournament")} {pool.tournamentId.slice(0, 8)}</Badge>
           </div>
         </div>
         {isAdmin ? (
           <Badge variant="warning" className="gap-1">
             <Shield className="h-3 w-3" />
-            Tournament admin available
+            {t("tournamentAdminAvailable")}
           </Badge>
         ) : (
           <p className="max-w-sm text-sm text-muted-foreground">
-            Tournament-wide result and participant updates are hidden because this account is not an ADMIN user.
+            {t("poolAdminHidden")}
           </p>
         )}
       </section>
 
       <Tabs defaultValue="matches">
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
-          <TabsTrigger value="matches">Matches</TabsTrigger>
-          <TabsTrigger value="predictions">Predictions</TabsTrigger>
-          <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
-          {isAdmin ? <TabsTrigger value="admin">Tournament Admin</TabsTrigger> : null}
+          <TabsTrigger value="matches">{t("matches")}</TabsTrigger>
+          <TabsTrigger value="predictions">{t("predictions")}</TabsTrigger>
+          <TabsTrigger value="leaderboard">{t("leaderboard")}</TabsTrigger>
+          {isAdmin ? <TabsTrigger value="admin">{t("tournamentAdmin")}</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="matches">
           <div className="space-y-4">
-            <MatchFilters filters={filters} onChange={setFilters} />
+            <MatchFilters filters={filters} teams={teams} onChange={setFilters} />
             {successMessage ? (
               <Alert>
                 <AlertDescription>{successMessage}</AlertDescription>
@@ -241,18 +250,18 @@ export function PoolDetailPage() {
             ) : null}
             <Card>
               <CardHeader>
-                <CardTitle>Matches and predictions</CardTitle>
-                <CardDescription>Predictions close at kickoff according to backend match time.</CardDescription>
+                <CardTitle>{t("matchesAndPredictions")}</CardTitle>
+                <CardDescription>{t("matchesAndPredictionsDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Match</TableHead>
-                      <TableHead>Kickoff</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Result</TableHead>
-                      <TableHead className="min-w-56">My prediction</TableHead>
+                      <TableHead>{t("match")}</TableHead>
+                      <TableHead>{t("kickoff")}</TableHead>
+                      <TableHead>{t("status")}</TableHead>
+                      <TableHead>{t("result")}</TableHead>
+                      <TableHead className="min-w-56">{t("myPrediction")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -262,20 +271,22 @@ export function PoolDetailPage() {
                         <TableRow key={match.matchId}>
                           <TableCell>
                             <div className="font-medium">
+                              <span className="mr-1">{participantFlag(match, "home")}</span>
                               {participantName(match, "home")} <span className="text-muted-foreground">vs</span>{" "}
+                              <span className="mr-1">{participantFlag(match, "away")}</span>
                               {participantName(match, "away")}
                             </div>
                             <div className="mt-1 flex flex-wrap gap-1">
-                              <Badge variant="outline">{participantCode(match, "home")}</Badge>
-                              <Badge variant="outline">{participantCode(match, "away")}</Badge>
-                              <Badge variant="secondary">Group {match.groupName ?? "-"}</Badge>
-                              {!hasResolvedParticipants(match) ? <Badge variant="warning">Unresolved</Badge> : null}
+                              <Badge variant="outline">{participantFlag(match, "home")} {participantCode(match, "home")}</Badge>
+                              <Badge variant="outline">{participantFlag(match, "away")} {participantCode(match, "away")}</Badge>
+                              <Badge variant="secondary">{t("group")} {match.groupName ?? "-"}</Badge>
+                              {!hasResolvedParticipants(match) ? <Badge variant="warning">{t("unresolved")}</Badge> : null}
                             </div>
                           </TableCell>
                           <TableCell>{formatDateTime(match.kickoffAt)}</TableCell>
                           <TableCell>
                             <Badge variant={match.predictionOpen ? "success" : "muted"}>
-                              {match.predictionOpen ? "Open" : match.status}
+                              {match.predictionOpen ? t("open") : match.status}
                             </Badge>
                           </TableCell>
                           <TableCell>{match.result ? `${match.result.homeScore}-${match.result.awayScore}` : "-"}</TableCell>
@@ -301,7 +312,7 @@ export function PoolDetailPage() {
                                 onChange={(event) => updateDraft(match.matchId, "awayScore", event.target.value)}
                               />
                               <Button size="sm" disabled={!match.predictionOpen || submitPrediction.isPending} onClick={() => savePrediction(match)}>
-                                Save
+                                {t("save")}
                               </Button>
                             </div>
                           </TableCell>
@@ -310,7 +321,7 @@ export function PoolDetailPage() {
                     })}
                   </TableBody>
                 </Table>
-                {matches.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No matches match these filters.</p> : null}
+                {matches.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">{t("noMatches")}</p> : null}
               </CardContent>
             </Card>
           </div>
@@ -323,22 +334,22 @@ export function PoolDetailPage() {
         <TabsContent value="leaderboard">
           <Card>
             <CardHeader>
-              <CardTitle>Leaderboard</CardTitle>
-              <CardDescription>Ranks are rebuilt by the backend when official results are upserted.</CardDescription>
+              <CardTitle>{t("leaderboard")}</CardTitle>
+              <CardDescription>{t("leaderboardDesc")}</CardDescription>
             </CardHeader>
             <CardContent>
               {(leaderboardQuery.data ?? []).length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  No leaderboard entries yet. Submit predictions and record official results to populate standings.
+                  {t("noLeaderboard")}
                 </p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Rank</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Points</TableHead>
-                      <TableHead>Recalculated</TableHead>
+                      <TableHead>{t("rank")}</TableHead>
+                      <TableHead>{t("user")}</TableHead>
+                      <TableHead>{t("points")}</TableHead>
+                      <TableHead>{t("recalculated")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -361,10 +372,9 @@ export function PoolDetailPage() {
           <TabsContent value="admin">
             <div className="space-y-4">
               <Alert>
-                <AlertTitle>Tournament-wide operations</AlertTitle>
+                <AlertTitle>{t("tournamentWideOps")}</AlertTitle>
                 <AlertDescription>
-                  Official match results and participant resolutions apply to every pool using this tournament. Recalculation
-                  reports how many predictions were scored and how many pools were affected.
+                  {t("tournamentWideOpsDesc")}
                 </AlertDescription>
               </Alert>
               <AdminParticipantsCard matches={matches} teams={teams} form={participantForm} mutation={resolveParticipants} />
@@ -379,23 +389,39 @@ export function PoolDetailPage() {
 
 function MatchFilters({
   filters,
+  teams,
   onChange,
 }: {
   filters: { group: string; team: string; predictableOnly: boolean };
+  teams: TeamSummary[];
   onChange: (filters: { group: string; team: string; predictableOnly: boolean }) => void;
 }) {
+  const { t } = useLanguage();
+
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center">
         <Filter className="hidden h-4 w-4 text-muted-foreground sm:block" />
         <Input
-          placeholder="Group"
+          placeholder={t("group")}
           className="sm:w-32"
           value={filters.group}
           onChange={(event) => onChange({ ...filters, group: event.target.value.toUpperCase() })}
         />
+        <select
+          className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm sm:w-56"
+          value={filters.team}
+          onChange={(event) => onChange({ ...filters, team: event.target.value })}
+        >
+          <option value="">{t("selectFlag")}</option>
+          {teams.map((team) => (
+            <option key={team.id} value={team.fifaCode}>
+              {flagForFifaCode(team.fifaCode)} {team.fifaCode} - {team.name}
+            </option>
+          ))}
+        </select>
         <Input
-          placeholder="Team FIFA code"
+          placeholder={t("teamCode")}
           className="sm:w-48"
           value={filters.team}
           onChange={(event) => onChange({ ...filters, team: event.target.value.toUpperCase() })}
@@ -406,7 +432,7 @@ function MatchFilters({
             checked={filters.predictableOnly}
             onChange={(event) => onChange({ ...filters, predictableOnly: event.target.checked })}
           />
-          Predictable only
+          {t("predictableOnly")}
         </label>
       </CardContent>
     </Card>
@@ -414,23 +440,25 @@ function MatchFilters({
 }
 
 function PredictionsTable({ predictions }: { predictions: PoolPrediction[] }) {
+  const { t } = useLanguage();
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Visible predictions</CardTitle>
-        <CardDescription>Other members' predictions appear only after the match closes.</CardDescription>
+        <CardTitle>{t("visiblePredictions")}</CardTitle>
+        <CardDescription>{t("visiblePredictionsDesc")}</CardDescription>
       </CardHeader>
       <CardContent>
         {predictions.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No visible predictions yet.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{t("noVisiblePredictions")}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Match</TableHead>
-                <TableHead>Prediction</TableHead>
-                <TableHead>Submitted</TableHead>
+                <TableHead>{t("user")}</TableHead>
+                <TableHead>{t("match")}</TableHead>
+                <TableHead>{t("prediction")}</TableHead>
+                <TableHead>{t("submitted")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -439,11 +467,12 @@ function PredictionsTable({ predictions }: { predictions: PoolPrediction[] }) {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {prediction.user.username}
-                      {prediction.mine ? <Badge variant="success">Mine</Badge> : null}
+                      {prediction.mine ? <Badge variant="success">{t("mine")}</Badge> : null}
                     </div>
                   </TableCell>
                   <TableCell>
-                    {participantCode(prediction.match, "home")} vs {participantCode(prediction.match, "away")}
+                    {participantFlag(prediction.match, "home")} {participantCode(prediction.match, "home")} vs{" "}
+                    {participantFlag(prediction.match, "away")} {participantCode(prediction.match, "away")}
                   </TableCell>
                   <TableCell className="font-semibold">
                     {prediction.homeScore}-{prediction.awayScore}
@@ -470,17 +499,18 @@ function AdminParticipantsCard({
   form: UseFormReturn<ParticipantForm>;
   mutation: UseMutationResult<MatchSummary, Error, ParticipantForm>;
 }) {
+  const { t } = useLanguage();
   const unresolvedMatches = matches.filter((match) => !hasResolvedParticipants(match));
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tournament participant resolution</CardTitle>
-        <CardDescription>Resolve placeholder knockout participants for this tournament before predictions and official results can open.</CardDescription>
+        <CardTitle>{t("participantResolution")}</CardTitle>
+        <CardDescription>{t("participantResolutionDesc")}</CardDescription>
       </CardHeader>
       <CardContent>
         {unresolvedMatches.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No unresolved matches in the current match set.</p>
+          <p className="text-sm text-muted-foreground">{t("noUnresolved")}</p>
         ) : (
           <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="grid gap-4 lg:grid-cols-[1.5fr_1fr_1fr_auto] lg:items-end">
             {form.formState.errors.root ? (
@@ -488,9 +518,9 @@ function AdminParticipantsCard({
                 <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
               </Alert>
             ) : null}
-            <FormField label="Placeholder match" error={form.formState.errors.matchId}>
+            <FormField label={t("placeholderMatch")} error={form.formState.errors.matchId}>
               <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...form.register("matchId")}>
-                <option value="">Select match</option>
+                <option value="">{t("selectMatch")}</option>
                 {unresolvedMatches.map((match) => (
                   <option key={match.matchId} value={match.matchId}>
                     {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt)}
@@ -498,15 +528,15 @@ function AdminParticipantsCard({
                 ))}
               </select>
             </FormField>
-            <FormField label="Home team" error={form.formState.errors.homeTeamId}>
+            <FormField label={t("homeTeam")} error={form.formState.errors.homeTeamId}>
               <TeamSelect teams={teams} {...form.register("homeTeamId")} />
             </FormField>
-            <FormField label="Away team" error={form.formState.errors.awayTeamId}>
+            <FormField label={t("awayTeam")} error={form.formState.errors.awayTeamId}>
               <TeamSelect teams={teams} {...form.register("awayTeamId")} />
             </FormField>
             <Button disabled={mutation.isPending || teams.length < 2}>
               <Shield className="h-4 w-4" />
-              Resolve
+              {t("resolve")}
             </Button>
           </form>
         )}
@@ -519,12 +549,14 @@ function TeamSelect({
   teams,
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement> & { teams: TeamSummary[] }) {
+  const { t } = useLanguage();
+
   return (
     <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...props}>
-      <option value="">Select team</option>
+      <option value="">{t("selectTeam")}</option>
       {teams.map((team) => (
         <option key={team.id} value={team.id}>
-          {team.fifaCode} - {team.name}
+          {flagForFifaCode(team.fifaCode)} {team.fifaCode} - {team.name}
         </option>
       ))}
     </select>
@@ -542,13 +574,14 @@ function AdminResultCard({
   mutation: UseMutationResult<RecalculationResponse, Error, ResultForm>;
   recalculation: RecalculationResponse | null;
 }) {
+  const { t } = useLanguage();
   const resolvedMatches = matches.filter(hasResolvedParticipants);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tournament result update</CardTitle>
-        <CardDescription>Upsert an official tournament result and inspect the idempotent recalculation response across affected pools.</CardDescription>
+        <CardTitle>{t("resultUpdate")}</CardTitle>
+        <CardDescription>{t("resultUpdateDesc")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="grid gap-4 lg:grid-cols-[1.6fr_repeat(4,0.6fr)_auto] lg:items-end">
@@ -557,9 +590,9 @@ function AdminResultCard({
               <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
             </Alert>
           ) : null}
-          <FormField label="Match" error={form.formState.errors.matchId}>
+          <FormField label={t("match")} error={form.formState.errors.matchId}>
             <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...form.register("matchId")}>
-              <option value="">Select match</option>
+              <option value="">{t("selectMatch")}</option>
               {resolvedMatches.map((match) => (
                 <option key={match.matchId} value={match.matchId}>
                   {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt)}
@@ -567,36 +600,36 @@ function AdminResultCard({
               ))}
             </select>
           </FormField>
-          <FormField label="Home" error={form.formState.errors.homeScore}>
+          <FormField label={t("home")} error={form.formState.errors.homeScore}>
             <Input type="number" min={0} {...form.register("homeScore")} />
           </FormField>
-          <FormField label="Away" error={form.formState.errors.awayScore}>
+          <FormField label={t("away")} error={form.formState.errors.awayScore}>
             <Input type="number" min={0} {...form.register("awayScore")} />
           </FormField>
-          <FormField label="Home pens" error={form.formState.errors.homePenaltyScore}>
+          <FormField label={t("homePens")} error={form.formState.errors.homePenaltyScore}>
             <Input type="number" min={0} {...form.register("homePenaltyScore")} />
           </FormField>
-          <FormField label="Away pens" error={form.formState.errors.awayPenaltyScore}>
+          <FormField label={t("awayPens")} error={form.formState.errors.awayPenaltyScore}>
             <Input type="number" min={0} {...form.register("awayPenaltyScore")} />
           </FormField>
           <Button disabled={mutation.isPending}>
             <RefreshCw className="h-4 w-4" />
-            Recalculate
+            {t("recalculate")}
           </Button>
           <label className="flex items-center gap-2 text-sm lg:col-span-6">
             <input type="checkbox" {...form.register("finalResult")} />
-            Final result
+            {t("finalResult")}
           </label>
         </form>
         {recalculation ? (
           <Alert className="mt-4">
             <CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-700" />
-            <AlertTitle className="inline">Recalculation complete</AlertTitle>
+            <AlertTitle className="inline">{t("recalculationComplete")}</AlertTitle>
             <AlertDescription className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <span>Scored predictions: {recalculation.scoredPredictions}</span>
-              <span>Affected pools: {recalculation.affectedPools}</span>
-              <span>Idempotent replay: {String(recalculation.idempotentReplay)}</span>
-              <span className="font-mono">Checksum: {recalculation.resultChecksum}</span>
+              <span>{t("scoredPredictions")}: {recalculation.scoredPredictions}</span>
+              <span>{t("affectedPools")}: {recalculation.affectedPools}</span>
+              <span>{t("idempotentReplay")}: {String(recalculation.idempotentReplay)}</span>
+              <span className="font-mono">{t("checksum")}: {recalculation.resultChecksum}</span>
             </AlertDescription>
           </Alert>
         ) : null}
@@ -619,6 +652,11 @@ function participantCode(match: MatchSummary, side: "home" | "away") {
   const team = side === "home" ? match.homeTeam : match.awayTeam;
   const placeholder = side === "home" ? match.homePlaceholder : match.awayPlaceholder;
   return team?.fifaCode ?? placeholder ?? "TBD";
+}
+
+function participantFlag(match: MatchSummary, side: "home" | "away") {
+  const team = side === "home" ? match.homeTeam : match.awayTeam;
+  return team ? flagForFifaCode(team.fifaCode) : "🏳️";
 }
 
 function uniqueTeams(matches: MatchSummary[]) {

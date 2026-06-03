@@ -12,6 +12,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Badge } from "../components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { FormField } from "../components/FormField";
+import { useLanguage } from "../i18n/LanguageProvider";
 
 const createSchema = z.object({
   name: z.string().min(3, "Use at least 3 characters").max(120),
@@ -28,6 +29,7 @@ type JoinForm = z.infer<typeof joinSchema>;
 export function DashboardPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const poolsQuery = useQuery({ queryKey: ["pools"], queryFn: api.listPools });
   const createForm = useForm<CreateForm>({ resolver: zodResolver(createSchema), defaultValues: { name: "", description: "" } });
   const joinForm = useForm<JoinForm>({ resolver: zodResolver(joinSchema), defaultValues: { inviteCode: "" } });
@@ -61,28 +63,28 @@ export function DashboardPage() {
     <div className="space-y-6">
       <section className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-normal">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Manage pools, invite codes, and prediction workflows.</p>
+          <h1 className="text-2xl font-semibold tracking-normal">{t("poolDashboardTitle")}</h1>
+          <p className="text-sm text-muted-foreground">{t("poolDashboardSubtitle")}</p>
         </div>
-        <Badge variant="outline">World Cup 2026</Badge>
+        <Badge variant="outline">{t("worldCup2026")}</Badge>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1fr_380px]">
         <div className="space-y-4">
           {poolsQuery.isLoading ? (
             <Card>
-              <CardContent className="pt-5 text-sm text-muted-foreground">Loading pools...</CardContent>
+              <CardContent className="pt-5 text-sm text-muted-foreground">{t("loadingPools")}</CardContent>
             </Card>
           ) : pools.length === 0 ? (
             <Card>
               <CardHeader>
-                <CardTitle>No pools yet</CardTitle>
-                <CardDescription>Create a pool for your group or join one with an invite code.</CardDescription>
+                <CardTitle>{t("noPools")}</CardTitle>
+                <CardDescription>{t("noPoolsDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Trophy className="h-4 w-4" />
-                  Seeded tournament id: {WORLD_CUP_2026_TOURNAMENT_ID}
+                  {t("seededTournamentId")}: {WORLD_CUP_2026_TOURNAMENT_ID}
                 </div>
               </CardContent>
             </Card>
@@ -93,19 +95,19 @@ export function DashboardPage() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <CardTitle>{pool.name}</CardTitle>
-                      <CardDescription>{pool.description || "No description provided"}</CardDescription>
+                      <CardDescription>{pool.description || t("noDescription")}</CardDescription>
                     </div>
                     <Badge variant={pool.membershipRole === "OWNER" ? "success" : "secondary"}>{pool.membershipRole}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-sm">
-                    <span className="text-muted-foreground">Invite code </span>
+                    <span className="text-muted-foreground">{t("inviteCode")} </span>
                     <span className="font-mono font-semibold">{pool.inviteCode}</span>
                   </div>
                   <Button asChild>
                     <Link to={`/pools/${pool.id}`}>
-                      Open pool
+                      {t("openPool")}
                       <ArrowRight className="h-4 w-4" />
                     </Link>
                   </Button>
@@ -118,8 +120,8 @@ export function DashboardPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Create pool</CardTitle>
-              <CardDescription>Uses the seeded World Cup 2026 tournament.</CardDescription>
+              <CardTitle>{t("createPool")}</CardTitle>
+              <CardDescription>{t("createPoolDesc")}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={createForm.handleSubmit((values) => createPool.mutate(values))} className="space-y-4">
@@ -128,15 +130,15 @@ export function DashboardPage() {
                     <AlertDescription>{createForm.formState.errors.root.message}</AlertDescription>
                   </Alert>
                 ) : null}
-                <FormField label="Pool name" error={createForm.formState.errors.name}>
+                <FormField label={t("poolName")} error={createForm.formState.errors.name}>
                   <Input {...createForm.register("name")} />
                 </FormField>
-                <FormField label="Description" error={createForm.formState.errors.description}>
+                <FormField label={t("description")} error={createForm.formState.errors.description}>
                   <Textarea {...createForm.register("description")} />
                 </FormField>
                 <Button className="w-full" disabled={createPool.isPending}>
                   <Plus className="h-4 w-4" />
-                  Create
+                  {t("create")}
                 </Button>
               </form>
             </CardContent>
@@ -144,8 +146,8 @@ export function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Join pool</CardTitle>
-              <CardDescription>Enter the invite code shared by a pool owner.</CardDescription>
+              <CardTitle>{t("joinPool")}</CardTitle>
+              <CardDescription>{t("joinPoolDesc")}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={joinForm.handleSubmit((values) => joinPool.mutate(values))} className="space-y-4">
@@ -154,21 +156,21 @@ export function DashboardPage() {
                     <AlertDescription>{joinForm.formState.errors.root.message}</AlertDescription>
                   </Alert>
                 ) : null}
-                <FormField label="Invite code" error={joinForm.formState.errors.inviteCode}>
+                <FormField label={t("inviteCode")} error={joinForm.formState.errors.inviteCode}>
                   <Input className="font-mono uppercase" {...joinForm.register("inviteCode")} />
                 </FormField>
                 <Button className="w-full" variant="secondary" disabled={joinPool.isPending}>
                   <Ticket className="h-4 w-4" />
-                  Join
+                  {t("join")}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
           <Alert>
-            <AlertTitle>Scoring model</AlertTitle>
+            <AlertTitle>{t("scoringModel")}</AlertTitle>
             <AlertDescription>
-              Official result updates recalculate score events and leaderboards idempotently from the backend.
+              {t("scoringModelDesc")}
             </AlertDescription>
           </Alert>
         </div>

@@ -60,3 +60,5 @@ Admin result updates are shown only when `/api/v1/auth/me` returns role `ADMIN`.
 Knockout matches can now return unresolved participants with `homeTeam`/`awayTeam` as `null` and placeholder labels such as `1A` or `2B`. The frontend displays those placeholders, keeps prediction and result controls closed until the backend marks the match resolved, and exposes ADMIN participant resolution through `PUT /api/v1/admin/matches/{matchId}/participants`.
 
 Official match results are tournament-wide, not pool-specific. ADMIN result updates live in the `Tournament Admin` tab and show the backend recalculation impact across affected pools.
+
+Social login and persistent pool branding assets are not frontend-only features. They need backend support for OAuth identity linking and pool image/icon fields before the UI can store them honestly.
