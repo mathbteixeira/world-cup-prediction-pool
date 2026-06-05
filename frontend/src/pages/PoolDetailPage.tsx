@@ -65,8 +65,9 @@ export function PoolDetailPage() {
 
   const poolQuery = useQuery({ queryKey: ["pool", poolId], queryFn: () => api.getPool(poolId), enabled: Boolean(poolId) });
   const tournamentId = poolQuery.data?.tournamentId;
+  const singleMatchId = poolQuery.data?.singleMatchId;
   const allMatchesQuery = useQuery({
-    queryKey: ["matches", tournamentId, "all"],
+    queryKey: ["matches", tournamentId, singleMatchId ?? "all"],
     queryFn: () => api.listMatches(tournamentId!, {}),
     enabled: Boolean(tournamentId),
   });
@@ -147,7 +148,10 @@ export function PoolDetailPage() {
       participantForm.setError("root", { message: error instanceof Error ? error.message : "Participant resolution failed" }),
   });
 
-  const allMatches = allMatchesQuery.data ?? [];
+  const allMatches = useMemo(() => {
+    const matches = allMatchesQuery.data ?? [];
+    return singleMatchId ? matches.filter((match) => match.matchId === singleMatchId) : matches;
+  }, [allMatchesQuery.data, singleMatchId]);
   const teams = useMemo(() => uniqueTeams(allMatches), [allMatches]);
   const groups = useMemo(() => uniqueGroups(allMatches), [allMatches]);
   const matches = useMemo(() => filterAndSortMatches(allMatches, filters), [allMatches, filters]);
@@ -199,6 +203,7 @@ export function PoolDetailPage() {
   const pool = poolQuery.data;
   const isAdmin = user?.role === "ADMIN";
   const tournamentName = pool.tournamentId === WORLD_CUP_2026_TOURNAMENT_ID ? t("worldCup2026") : pool.tournamentId.slice(0, 8);
+  const scopeLabel = pool.poolScope === "SINGLE_MATCH" ? t("singleMatchPool") : t("tournamentPool");
 
   return (
     <div className="space-y-6">
@@ -221,6 +226,7 @@ export function PoolDetailPage() {
               <Clipboard className="h-3 w-3" />
               {pool.inviteCode}
             </Badge>
+            <Badge variant="outline">{scopeLabel}</Badge>
             <Badge variant="outline">{t("tournament")} {tournamentName}</Badge>
           </div>
         </div>

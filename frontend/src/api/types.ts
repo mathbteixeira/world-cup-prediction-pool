@@ -19,11 +19,38 @@ export type ApiErrorResponse = {
 export type PoolSummary = {
   id: string;
   tournamentId: string;
+  singleMatchId: string | null;
+  poolScope: "TOURNAMENT" | "SINGLE_MATCH";
   name: string;
   description: string | null;
   inviteCode: string;
   membershipRole: "OWNER" | "MEMBER";
 };
+
+export type CreatePoolRequest =
+  | {
+      name: string;
+      description?: string | null;
+      mode: "TOURNAMENT";
+      tournamentId: string;
+    }
+  | {
+      name: string;
+      description?: string | null;
+      mode: "SINGLE_MATCH";
+      matchId: string;
+    }
+  | {
+      name: string;
+      description?: string | null;
+      mode: "SINGLE_MATCH";
+      customMatch: {
+        homeTeam: string;
+        awayTeam: string;
+        kickoffAt: string;
+        competitionLabel?: string | null;
+      };
+    };
 
 export type TeamSummary = {
   id: string;
