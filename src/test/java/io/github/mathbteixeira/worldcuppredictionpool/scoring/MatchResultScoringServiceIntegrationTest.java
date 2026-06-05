@@ -98,17 +98,17 @@ class MatchResultScoringServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        leaderboardEntryRepository.deleteAll();
-        scoreEventRepository.deleteAll();
-        predictionCurrentScoreRepository.deleteAll();
-        matchResultRepository.deleteAll();
-        predictionRepository.deleteAll();
-        poolMembershipRepository.deleteAll();
-        predictionPoolRepository.deleteAll();
-        matchRepository.deleteAll();
-        teamRepository.deleteAll();
-        tournamentRepository.deleteAll();
-        userAccountRepository.deleteAll();
+        leaderboardEntryRepository.deleteAllInBatch();
+        scoreEventRepository.deleteAllInBatch();
+        predictionCurrentScoreRepository.deleteAllInBatch();
+        matchResultRepository.deleteAllInBatch();
+        predictionRepository.deleteAllInBatch();
+        poolMembershipRepository.deleteAllInBatch();
+        predictionPoolRepository.deleteAllInBatch();
+        matchRepository.deleteAllInBatch();
+        teamRepository.deleteAllInBatch();
+        tournamentRepository.deleteAllInBatch();
+        userAccountRepository.deleteAllInBatch();
 
         UserAccount owner = userAccountRepository.save(new UserAccount("owner", "owner@example.com", "hash", UserRole.USER));
         UserAccount guest = userAccountRepository.save(new UserAccount("guest", "guest@example.com", "hash", UserRole.USER));
