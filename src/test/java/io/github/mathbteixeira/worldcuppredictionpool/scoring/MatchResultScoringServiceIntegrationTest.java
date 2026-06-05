@@ -11,6 +11,7 @@ import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.MatchR
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.RecalculationResult;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.UpsertMatchResultCommand;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.LeaderboardEntryRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.PredictionCurrentScoreRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.ScoreEventRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.MatchStatus;
@@ -18,6 +19,7 @@ import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tournament;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.TournamentStatus;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchResultRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TeamRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TournamentRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
@@ -83,7 +85,13 @@ class MatchResultScoringServiceIntegrationTest {
     private ScoreEventRepository scoreEventRepository;
 
     @Autowired
+    private PredictionCurrentScoreRepository predictionCurrentScoreRepository;
+
+    @Autowired
     private LeaderboardEntryRepository leaderboardEntryRepository;
+
+    @Autowired
+    private MatchResultRepository matchResultRepository;
 
     private UUID matchId;
     private UUID poolId;
@@ -92,6 +100,8 @@ class MatchResultScoringServiceIntegrationTest {
     void setUp() {
         leaderboardEntryRepository.deleteAll();
         scoreEventRepository.deleteAll();
+        predictionCurrentScoreRepository.deleteAll();
+        matchResultRepository.deleteAll();
         predictionRepository.deleteAll();
         poolMembershipRepository.deleteAll();
         predictionPoolRepository.deleteAll();
