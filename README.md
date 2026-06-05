@@ -36,6 +36,7 @@ This is intentionally **not** a toy CRUD app. The core challenge is domain corre
   - official competition data and result lifecycle
 - **Pool aggregate** (`PredictionPool`, `PoolMembership`)
   - membership and ownership boundaries
+  - pool scope: `TOURNAMENT` or `SINGLE_MATCH`
 - **Prediction aggregate** (`Prediction`)
   - one prediction per user/pool/match
 - **Scoring aggregate**
@@ -50,6 +51,8 @@ This is intentionally **not** a toy CRUD app. The core challenge is domain corre
 - score events are immutable and append-only per `(prediction, resultChecksum)`
 - replaying the same result is idempotent (no duplicated points)
 - leaderboard totals are rebuilt from current per-prediction scores inside one transaction
+- a tournament pool references a tournament and no single match
+- a single-match pool references exactly one match; that match may be an existing tournament match or a custom friendly created during pool setup
 
 ### Mutability design
 
@@ -124,6 +127,16 @@ class LeaderboardEntry {
   int totalPoints;
   int rankPosition;
   Instant recalculatedAt;
+}
+```
+
+```java
+@Entity
+class PredictionPool {
+  UUID id;
+  PoolScope poolScope; // TOURNAMENT or SINGLE_MATCH
+  Tournament tournament; // retained for compatibility and scoring rule lookup
+  Match singleMatch; // required only for SINGLE_MATCH pools
 }
 ```
 
@@ -265,6 +278,8 @@ TOKEN="<jwt-token>"
 
 ### 3) Create pool
 
+Tournament pools use the existing behavior. `mode` is optional and defaults to `TOURNAMENT` for backward-compatible clients.
+
 ```bash
 curl -sS -X POST "$BASE_URL/api/v1/pools" \
   -H "Authorization: Bearer $TOKEN" \
@@ -272,6 +287,7 @@ curl -sS -X POST "$BASE_URL/api/v1/pools" \
   -d '{
     "name": "Office Pool",
     "description": "MVP pool",
+    "mode": "TOURNAMENT",
     "tournamentId": "11111111-1111-1111-1111-111111111111"
   }'
 ```
@@ -282,12 +298,49 @@ Example response:
 {
   "id": "22222222-2222-2222-2222-222222222222",
   "tournamentId": "11111111-1111-1111-1111-111111111111",
+  "singleMatchId": null,
+  "poolScope": "TOURNAMENT",
   "name": "Office Pool",
   "description": "MVP pool",
   "inviteCode": "ABCD1234",
   "membershipRole": "OWNER"
 }
 ```
+
+Single-match pools can point at an existing match:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/pools" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Family Friendly",
+    "description": "One match, one leaderboard",
+    "mode": "SINGLE_MATCH",
+    "matchId": "33333333-3333-3333-3333-333333333333"
+  }'
+```
+
+Or they can create a simple custom match in the same request:
+
+```bash
+curl -sS -X POST "$BASE_URL/api/v1/pools" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Family Friendly",
+    "description": "One match, one leaderboard",
+    "mode": "SINGLE_MATCH",
+    "customMatch": {
+      "homeTeam": "Brazil",
+      "awayTeam": "Egypt",
+      "kickoffAt": "2026-06-20T19:00:00Z",
+      "competitionLabel": "Friendly"
+    }
+  }'
+```
+
+The custom-match path creates a backing tournament, two team records, and one scheduled match. The returned `singleMatchId` is the match id to use when submitting predictions or upserting the result.
 
 ### 4) Join pool
 
@@ -306,6 +359,8 @@ Example response:
 {
   "id": "22222222-2222-2222-2222-222222222222",
   "tournamentId": "11111111-1111-1111-1111-111111111111",
+  "singleMatchId": null,
+  "poolScope": "TOURNAMENT",
   "name": "Office Pool",
   "description": "MVP pool",
   "inviteCode": "ABCD1234",
@@ -323,6 +378,8 @@ curl -sS "$BASE_URL/api/v1/tournaments/11111111-1111-1111-1111-111111111111/matc
 ```
 
 Available filters: `status`, `stage`, `group`, `team` (home or away FIFA code), `from`, `to`, and `predictableOnly`.
+
+For a single-match pool, use the `singleMatchId` from the create-pool response in the prediction URL. The service rejects other match ids, even if they belong to the same backing tournament.
 
 Example response:
 
@@ -491,7 +548,7 @@ Example response:
 ### Current limitations (MVP)
 
 - admin/tournament/match seed data still needs a proper management flow
-- no frontend yet
+- no frontend yet; this repository currently exposes the create-pool choice through the backend API and Swagger UI
 - no score-audit read endpoint yet
 - no async recalculation yet
 
@@ -518,6 +575,7 @@ curl -sS -X PUT "$BASE_URL/api/v1/admin/matches/33333333-3333-3333-3333-33333333
 ## Database & migrations
 
 - Flyway baseline schema (`V1`) + scoring/recalculation schema (`V2`)
+- single-match pool scope migration (`V9`) adds `pool_scope` and `single_match_id`
 - PostgreSQL-specific constraints/indexes for idempotency and ranking access paths
 
 ---
@@ -530,6 +588,7 @@ curl -sS -X PUT "$BASE_URL/api/v1/admin/matches/33333333-3333-3333-3333-33333333
   - idempotent replay
   - recalculation after result change
   - leaderboard rebuild behavior
+  - single-match pool creation and scoring reuse
 
 Run tests:
 
@@ -559,6 +618,7 @@ mvn spring-boot:run
 - leaderboard rebuild is deterministic and safe, but recomputes per affected pool (simple and reliable over micro-optimized)
 - idempotency is implemented at DB constraint + application orchestration level
 - rule versioning supports evolution but currently ships with v1 default fallback
+- custom single-match pools create a small backing tournament so existing match, prediction, scoring, and result-update code can be reused without broad schema changes
 - Pagination is intentionally omitted from the match listing endpoint for the MVP because a World Cup tournament has a small, bounded number of matches. The API keeps the client flow simple while leaving pagination easy to add if the domain expands to larger competitions or historical datasets.
 
 ### Planned improvements

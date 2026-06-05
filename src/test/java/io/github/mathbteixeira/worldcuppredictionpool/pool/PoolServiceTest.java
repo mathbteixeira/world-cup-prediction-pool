@@ -9,8 +9,13 @@ import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.MatchStatus;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tournament;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.TournamentStatus;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TeamRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TournamentRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserRole;
@@ -24,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.lang.reflect.Field;
 import java.util.UUID;
 import java.util.Optional;
@@ -50,6 +56,12 @@ class PoolServiceTest {
     @Mock
     private TournamentRepository tournamentRepository;
 
+    @Mock
+    private MatchRepository matchRepository;
+
+    @Mock
+    private TeamRepository teamRepository;
+
     @InjectMocks
     private PoolService poolService;
 
@@ -64,17 +76,109 @@ class PoolServiceTest {
         when(poolMembershipRepository.save(any(PoolMembership.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PoolSummaryResponse response = poolService.createPool(
-                new CreatePoolRequest("Office Pool", "Qatar 2026", tournamentId),
+                new CreatePoolRequest("Office Pool", "Qatar 2026", CreatePoolRequest.PoolMode.TOURNAMENT, tournamentId, null, null),
                 "ana@example.com"
         );
 
         assertThat(response.name()).isEqualTo("Office Pool");
+        assertThat(response.poolScope()).isEqualTo("TOURNAMENT");
+        assertThat(response.singleMatchId()).isNull();
         assertThat(response.membershipRole()).isEqualTo("OWNER");
         assertThat(response.inviteCode()).hasSize(8);
 
         ArgumentCaptor<PoolMembership> membershipCaptor = ArgumentCaptor.forClass(PoolMembership.class);
         verify(poolMembershipRepository).save(membershipCaptor.capture());
         assertThat(membershipCaptor.getValue().getRole().name()).isEqualTo("OWNER");
+    }
+
+    @Test
+    void shouldCreateSingleMatchPoolFromExistingMatch() {
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
+        UUID tournamentId = UUID.randomUUID();
+        setId(tournament, tournamentId);
+        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        Team home = new Team(tournament, "Brazil", "BRA");
+        Team away = new Team(tournament, "Egypt", "EGY");
+        Match match = new Match(
+                tournament,
+                home,
+                away,
+                Instant.parse("2027-06-01T13:00:00Z"),
+                "FRIENDLY",
+                MatchStatus.SCHEDULED
+        );
+        UUID matchId = UUID.randomUUID();
+        setId(match, matchId);
+        when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(owner));
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(match));
+        when(predictionPoolRepository.save(any(PredictionPool.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(poolMembershipRepository.save(any(PoolMembership.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PoolSummaryResponse response = poolService.createPool(
+                new CreatePoolRequest("Family Match", null, CreatePoolRequest.PoolMode.SINGLE_MATCH, null, matchId, null),
+                "ana@example.com"
+        );
+
+        assertThat(response.poolScope()).isEqualTo("SINGLE_MATCH");
+        assertThat(response.tournamentId()).isEqualTo(tournamentId);
+        assertThat(response.singleMatchId()).isEqualTo(matchId);
+        assertThat(response.membershipRole()).isEqualTo("OWNER");
+    }
+
+    @Test
+    void shouldCreateSingleMatchPoolWithCustomMatch() {
+        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(owner));
+        when(tournamentRepository.save(any(Tournament.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(teamRepository.save(any(Team.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(matchRepository.save(any(Match.class))).thenAnswer(invocation -> {
+            Match match = invocation.getArgument(0);
+            setId(match, UUID.randomUUID());
+            setId(match.getTournament(), UUID.randomUUID());
+            return match;
+        });
+        when(predictionPoolRepository.save(any(PredictionPool.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(poolMembershipRepository.save(any(PoolMembership.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PoolSummaryResponse response = poolService.createPool(
+                new CreatePoolRequest(
+                        "Family Match",
+                        null,
+                        CreatePoolRequest.PoolMode.SINGLE_MATCH,
+                        null,
+                        null,
+                        new CreatePoolRequest.CustomMatchRequest(
+                                "Brazil",
+                                "Egypt",
+                                Instant.parse("2027-06-01T13:00:00Z"),
+                                "Friendly"
+                        )
+                ),
+                "ana@example.com"
+        );
+
+        assertThat(response.poolScope()).isEqualTo("SINGLE_MATCH");
+        assertThat(response.singleMatchId()).isNotNull();
+        assertThat(response.tournamentId()).isNotNull();
+    }
+
+    @Test
+    void shouldRejectSingleMatchPoolWithoutExactlyOneMatchSource() {
+        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(owner));
+
+        assertThatThrownBy(() -> poolService.createPool(
+                new CreatePoolRequest("Family Match", null, CreatePoolRequest.PoolMode.SINGLE_MATCH, null, null, null),
+                "ana@example.com"
+        ))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> {
+                    ResponseStatusException exception = (ResponseStatusException) error;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(exception.getReason()).isEqualTo("Single-match pool must reference exactly one existing or custom match");
+                });
+
+        verify(predictionPoolRepository, never()).save(any(PredictionPool.class));
     }
 
     @Test

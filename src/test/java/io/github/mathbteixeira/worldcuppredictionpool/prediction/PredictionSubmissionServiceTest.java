@@ -312,6 +312,50 @@ class PredictionSubmissionServiceTest {
                 });
     }
 
+    @Test
+    void shouldRejectPredictionForAnotherMatchInSingleMatchPool() {
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
+        Tournament tournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
+        setId(owner, UUID.randomUUID());
+        setId(tournament, UUID.randomUUID());
+        Team home = new Team(tournament, "Brazil", "BRA");
+        Team away = new Team(tournament, "Egypt", "EGY");
+        Match poolMatch = new Match(
+                tournament,
+                home,
+                away,
+                Instant.parse("2027-06-01T13:00:00Z"),
+                "FRIENDLY",
+                MatchStatus.SCHEDULED
+        );
+        Match otherMatch = new Match(
+                tournament,
+                away,
+                home,
+                Instant.parse("2027-06-02T13:00:00Z"),
+                "FRIENDLY",
+                MatchStatus.SCHEDULED
+        );
+        UUID poolMatchId = UUID.randomUUID();
+        UUID otherMatchId = UUID.randomUUID();
+        setId(poolMatch, poolMatchId);
+        setId(otherMatch, otherMatchId);
+        PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, poolMatch);
+
+        UUID poolId = UUID.randomUUID();
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(matchRepository.findById(otherMatchId)).thenReturn(Optional.of(otherMatch));
+
+        assertThatThrownBy(() -> predictionSubmissionService.submit(
+                new SubmitPredictionCommand(poolId, otherMatchId, "owner@example.com", 1, 0)))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> {
+                    ResponseStatusException exception = (ResponseStatusException) error;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getReason()).isEqualTo("Match does not belong to single-match pool");
+                });
+    }
+
     private static void setId(BaseEntity entity, UUID id) {
         try {
             Field field = BaseEntity.class.getDeclaredField("id");
