@@ -230,6 +230,54 @@ class PoolServiceTest {
         verify(poolMembershipRepository, never()).save(any(PoolMembership.class));
     }
 
+    @Test
+    void shouldReturnPoolForMember() {
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
+        UUID tournamentId = UUID.randomUUID();
+        setId(tournament, tournamentId);
+        UserAccount user = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        UUID userId = UUID.randomUUID();
+        setId(user, userId);
+        PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", user, tournament);
+        UUID poolId = UUID.randomUUID();
+        setId(pool, poolId);
+
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(user));
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, userId))
+                .thenReturn(Optional.of(new PoolMembership(pool, user, PoolRole.OWNER)));
+
+        PoolSummaryResponse response = poolService.getPool(poolId, "ana@example.com");
+
+        assertThat(response.id()).isEqualTo(poolId);
+        assertThat(response.tournamentId()).isEqualTo(tournamentId);
+        assertThat(response.name()).isEqualTo("Office Pool");
+        assertThat(response.membershipRole()).isEqualTo("OWNER");
+    }
+
+    @Test
+    void shouldJoinPoolByInviteCode() {
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
+        PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
+        UUID poolId = UUID.randomUUID();
+        setId(pool, poolId);
+        UserAccount user = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        UUID userId = UUID.randomUUID();
+        setId(user, userId);
+
+        when(predictionPoolRepository.findByInviteCodeIgnoreCase("ABCDEFGH")).thenReturn(Optional.of(pool));
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(user));
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, userId)).thenReturn(Optional.empty());
+        when(poolMembershipRepository.save(any(PoolMembership.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PoolSummaryResponse response = poolService.joinPoolByInviteCode("ABCDEFGH", "ana@example.com");
+
+        assertThat(response.id()).isEqualTo(poolId);
+        assertThat(response.membershipRole()).isEqualTo("MEMBER");
+    }
+
     private static void setId(BaseEntity entity, UUID id) {
         try {
             Field field = BaseEntity.class.getDeclaredField("id");

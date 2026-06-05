@@ -4,3 +4,8 @@ target/
 *.iml
 .DS_Store
 .env
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/.env
+frontend/.env.local

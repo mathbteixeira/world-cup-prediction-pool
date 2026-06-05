@@ -147,6 +147,23 @@ public class PoolService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public PoolSummaryResponse getPool(UUID poolId, String email) {
+        predictionPoolRepository.findById(poolId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
+        UserAccount user = getUserByEmail(email);
+        PoolMembership membership = poolMembershipRepository.findByPoolIdAndUserId(poolId, user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not a member of this pool"));
+        return toResponse(membership.getPool(), membership.getRole());
+    }
+
+    @Transactional
+    public PoolSummaryResponse joinPoolByInviteCode(String inviteCode, String email) {
+        PredictionPool pool = predictionPoolRepository.findByInviteCodeIgnoreCase(inviteCode.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
+        return joinPool(pool.getId(), inviteCode, email);
+    }
+
     @Transactional
     public PoolSummaryResponse joinPool(UUID poolId, String inviteCode, String email) {
         PredictionPool pool = predictionPoolRepository.findById(poolId)

@@ -56,6 +56,18 @@ public class PoolController {
         return poolService.listPools(authentication.getName());
     }
 
+    @GetMapping("/{poolId}")
+    @Operation(summary = "Get pool", description = "Returns a prediction pool where the current user is a member.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Pool returned"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Current user is not a member of the pool")
+    })
+    public PoolSummaryResponse get(@Parameter(description = "Prediction pool id") @PathVariable UUID poolId,
+                                   Authentication authentication) {
+        return poolService.getPool(poolId, authentication.getName());
+    }
+
     @GetMapping("/{poolId}/leaderboard")
     @Operation(summary = "Get pool leaderboard", description = "Returns the current leaderboard for a prediction pool.")
     @ApiResponses({
@@ -82,5 +94,18 @@ public class PoolController {
                                     @Valid @RequestBody JoinPoolRequest request,
                                     Authentication authentication) {
         return poolService.joinPool(poolId, request.inviteCode(), authentication.getName());
+    }
+
+    @PostMapping("/join")
+    @Operation(summary = "Join pool by invite code", description = "Adds the current user to a prediction pool using only its invite code.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Pool joined"),
+            @ApiResponse(responseCode = "400", description = "Invalid invite code"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "404", description = "Pool not found")
+    })
+    public PoolSummaryResponse joinByInviteCode(@Valid @RequestBody JoinPoolRequest request,
+                                                Authentication authentication) {
+        return poolService.joinPoolByInviteCode(request.inviteCode(), authentication.getName());
     }
 }

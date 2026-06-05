@@ -548,7 +548,7 @@ Example response:
 ### Current limitations (MVP)
 
 - admin/tournament/match seed data still needs a proper management flow
-- no frontend yet; this repository currently exposes the create-pool choice through the backend API and Swagger UI
+- the frontend supports tournament pools, single-match pools backed by an existing match, and custom single-match pools
 - no score-audit read endpoint yet
 - no async recalculation yet
 
@@ -575,7 +575,7 @@ curl -sS -X PUT "$BASE_URL/api/v1/admin/matches/33333333-3333-3333-3333-33333333
 ## Database & migrations
 
 - Flyway baseline schema (`V1`) + scoring/recalculation schema (`V2`)
-- single-match pool scope migration (`V8`) adds `pool_scope` and `single_match_id`
+- single-match pool scope migration (`V9`) adds `pool_scope` and `single_match_id`
 - PostgreSQL-specific constraints/indexes for idempotency and ranking access paths
 
 ---
@@ -608,6 +608,16 @@ export JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64
 export PATH="$JAVA_HOME/bin:$PATH"
 mvn spring-boot:run
 ```
+
+Run the frontend in another terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The app starts at `http://localhost:5173` and lets you create either a tournament pool or a single-match pool. For a custom friendly, choose **Single-match pool**, then **Custom match**, and enter the teams, kickoff time, and optional competition label.
 
 ---
 
