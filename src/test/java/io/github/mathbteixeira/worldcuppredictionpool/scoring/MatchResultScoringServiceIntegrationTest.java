@@ -209,4 +209,33 @@ class MatchResultScoringServiceIntegrationTest {
         assertThat(changedLeaderboard.get(0).getTotalPoints()).isEqualTo(3);
         assertThat(changedLeaderboard.get(1).getTotalPoints()).isEqualTo(0);
     }
+
+    @Test
+    void shouldScoreSingleMatchPoolAndRebuildItsLeaderboard() {
+        Match match = matchRepository.findById(matchId).orElseThrow();
+        UserAccount owner = userAccountRepository.findByEmailIgnoreCase("owner@example.com").orElseThrow();
+        UserAccount guest = userAccountRepository.findByEmailIgnoreCase("guest@example.com").orElseThrow();
+
+        PredictionPool singleMatchPool = predictionPoolRepository.save(new PredictionPool(
+                "Family Friendly",
+                "One match",
+                "INVITE02",
+                owner,
+                match
+        ));
+        poolMembershipRepository.save(new PoolMembership(singleMatchPool, owner, PoolRole.OWNER));
+        poolMembershipRepository.save(new PoolMembership(singleMatchPool, guest, PoolRole.MEMBER));
+        predictionRepository.save(new Prediction(singleMatchPool, match, owner, 2, 1, Instant.parse("2026-06-10T10:10:00Z")));
+        predictionRepository.save(new Prediction(singleMatchPool, match, guest, 0, 0, Instant.parse("2026-06-10T10:15:00Z")));
+
+        RecalculationResult result = matchResultScoringService.upsertResultAndRecalculate(
+                new UpsertMatchResultCommand(matchId, 2, 1, null, null, true)
+        );
+
+        assertThat(result.affectedPools()).isEqualTo(2);
+        var leaderboard = leaderboardEntryRepository.findAllByPoolIdOrderByRankPositionAsc(singleMatchPool.getId());
+        assertThat(leaderboard).hasSize(2);
+        assertThat(leaderboard.get(0).getTotalPoints()).isEqualTo(5);
+        assertThat(leaderboard.get(1).getTotalPoints()).isEqualTo(0);
+    }
 }

@@ -35,12 +35,12 @@ public class PoolController {
     }
 
     @PostMapping
-    @Operation(summary = "Create pool", description = "Creates a prediction pool for a tournament and makes the current user the owner.")
+    @Operation(summary = "Create pool", description = "Creates either a tournament pool or a single-match pool and makes the current user the owner.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Pool created"),
             @ApiResponse(responseCode = "400", description = "Invalid pool request"),
             @ApiResponse(responseCode = "401", description = "Authentication required"),
-            @ApiResponse(responseCode = "404", description = "Tournament not found")
+            @ApiResponse(responseCode = "404", description = "Tournament or match not found")
     })
     public PoolSummaryResponse create(@Valid @RequestBody CreatePoolRequest request, Authentication authentication) {
         return poolService.createPool(request, authentication.getName());
