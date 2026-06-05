@@ -1,5 +1,6 @@
 import type {
   ApiErrorResponse,
+  CreatePoolRequest,
   LeaderboardEntry,
   MatchFilters,
   MatchSummary,
@@ -86,7 +87,7 @@ export const api = {
   me: () => request<TokenResponse>("/api/v1/auth/me"),
   listPools: () => request<PoolSummary[]>("/api/v1/pools"),
   getPool: (poolId: string) => request<PoolSummary>(`/api/v1/pools/${poolId}`),
-  createPool: (body: { name: string; description?: string | null; tournamentId: string }) =>
+  createPool: (body: CreatePoolRequest) =>
     request<PoolSummary>("/api/v1/pools", { method: "POST", body: JSON.stringify(body) }),
   joinPool: (inviteCode: string) =>
     request<PoolSummary>("/api/v1/pools/join", { method: "POST", body: JSON.stringify({ inviteCode }) }),

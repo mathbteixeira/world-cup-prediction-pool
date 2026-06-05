@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { ArrowRight, Plus, Ticket, Trophy } from "lucide-react";
+import { ArrowRight, CalendarClock, Plus, Ticket, Trophy } from "lucide-react";
 import { api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -17,6 +17,26 @@ import { useLanguage } from "../i18n/LanguageProvider";
 const createSchema = z.object({
   name: z.string().min(3, "Use at least 3 characters").max(120),
   description: z.string().max(500).optional(),
+  mode: z.enum(["TOURNAMENT", "SINGLE_MATCH"]),
+  matchSource: z.enum(["EXISTING", "CUSTOM"]),
+  matchId: z.string().optional(),
+  homeTeam: z.string().max(100).optional(),
+  awayTeam: z.string().max(100).optional(),
+  kickoffAt: z.string().optional(),
+  competitionLabel: z.string().max(60).optional(),
+}).superRefine((values, ctx) => {
+  if (values.mode !== "SINGLE_MATCH") return;
+  if (values.matchSource === "EXISTING" && !values.matchId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["matchId"], message: "Choose a match" });
+  }
+  if (values.matchSource === "CUSTOM") {
+    if (!values.homeTeam?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["homeTeam"], message: "Home team is required" });
+    if (!values.awayTeam?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["awayTeam"], message: "Away team is required" });
+    if (!values.kickoffAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["kickoffAt"], message: "Kickoff is required" });
+    if (values.homeTeam?.trim().toLowerCase() === values.awayTeam?.trim().toLowerCase()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["awayTeam"], message: "Teams must be different" });
+    }
+  }
 });
 
 const joinSchema = z.object({
@@ -31,16 +51,58 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const poolsQuery = useQuery({ queryKey: ["pools"], queryFn: api.listPools });
-  const createForm = useForm<CreateForm>({ resolver: zodResolver(createSchema), defaultValues: { name: "", description: "" } });
+  const existingMatchesQuery = useQuery({
+    queryKey: ["matches", WORLD_CUP_2026_TOURNAMENT_ID, "dashboard"],
+    queryFn: () => api.listMatches(WORLD_CUP_2026_TOURNAMENT_ID, {}),
+  });
+  const createForm = useForm<CreateForm>({
+    resolver: zodResolver(createSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      mode: "TOURNAMENT",
+      matchSource: "CUSTOM",
+      matchId: "",
+      homeTeam: "",
+      awayTeam: "",
+      kickoffAt: "",
+      competitionLabel: "",
+    },
+  });
   const joinForm = useForm<JoinForm>({ resolver: zodResolver(joinSchema), defaultValues: { inviteCode: "" } });
+  const createMode = createForm.watch("mode");
+  const matchSource = createForm.watch("matchSource");
 
   const createPool = useMutation({
-    mutationFn: (values: CreateForm) =>
-      api.createPool({
+    mutationFn: (values: CreateForm) => {
+      if (values.mode === "SINGLE_MATCH" && values.matchSource === "EXISTING") {
+        return api.createPool({
+          name: values.name,
+          description: values.description || null,
+          mode: "SINGLE_MATCH",
+          matchId: values.matchId!,
+        });
+      }
+      if (values.mode === "SINGLE_MATCH") {
+        return api.createPool({
+          name: values.name,
+          description: values.description || null,
+          mode: "SINGLE_MATCH",
+          customMatch: {
+            homeTeam: values.homeTeam!.trim(),
+            awayTeam: values.awayTeam!.trim(),
+            kickoffAt: new Date(values.kickoffAt!).toISOString(),
+            competitionLabel: values.competitionLabel?.trim() || null,
+          },
+        });
+      }
+      return api.createPool({
         name: values.name,
         description: values.description || null,
+        mode: "TOURNAMENT",
         tournamentId: WORLD_CUP_2026_TOURNAMENT_ID,
-      }),
+      });
+    },
     onSuccess: async (pool) => {
       await queryClient.invalidateQueries({ queryKey: ["pools"] });
       navigate(`/pools/${pool.id}`);
@@ -97,7 +159,10 @@ export function DashboardPage() {
                       <CardTitle>{pool.name}</CardTitle>
                       <CardDescription>{pool.description || t("noDescription")}</CardDescription>
                     </div>
-                    <Badge variant={pool.membershipRole === "OWNER" ? "success" : "secondary"}>{pool.membershipRole}</Badge>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{pool.poolScope === "SINGLE_MATCH" ? t("singleMatchPool") : t("tournamentPool")}</Badge>
+                      <Badge variant={pool.membershipRole === "OWNER" ? "success" : "secondary"}>{pool.membershipRole}</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -136,6 +201,74 @@ export function DashboardPage() {
                 <FormField label={t("description")} error={createForm.formState.errors.description}>
                   <Textarea {...createForm.register("description")} />
                 </FormField>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={createMode === "TOURNAMENT" ? "default" : "outline"}
+                    onClick={() => createForm.setValue("mode", "TOURNAMENT")}
+                  >
+                    <Trophy className="h-4 w-4" />
+                    {t("tournamentPool")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={createMode === "SINGLE_MATCH" ? "default" : "outline"}
+                    onClick={() => createForm.setValue("mode", "SINGLE_MATCH")}
+                  >
+                    <CalendarClock className="h-4 w-4" />
+                    {t("singleMatchPool")}
+                  </Button>
+                </div>
+                {createMode === "SINGLE_MATCH" ? (
+                  <div className="space-y-4 rounded-md border p-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant={matchSource === "CUSTOM" ? "default" : "outline"}
+                        onClick={() => createForm.setValue("matchSource", "CUSTOM")}
+                      >
+                        {t("customMatch")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={matchSource === "EXISTING" ? "default" : "outline"}
+                        onClick={() => createForm.setValue("matchSource", "EXISTING")}
+                      >
+                        {t("existingMatch")}
+                      </Button>
+                    </div>
+                    {matchSource === "EXISTING" ? (
+                      <FormField label={t("match")} error={createForm.formState.errors.matchId}>
+                        <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...createForm.register("matchId")}>
+                          <option value="">{existingMatchesQuery.isLoading ? t("loadingMatches") : t("selectMatch")}</option>
+                          {(existingMatchesQuery.data ?? []).map((match) => (
+                            <option key={match.matchId} value={match.matchId}>
+                              {match.homeTeam?.fifaCode ?? match.homePlaceholder ?? "TBD"} vs {match.awayTeam?.fifaCode ?? match.awayPlaceholder ?? "TBD"} -{" "}
+                              {new Date(match.kickoffAt).toLocaleString()}
+                            </option>
+                          ))}
+                        </select>
+                      </FormField>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <FormField label={t("homeTeam")} error={createForm.formState.errors.homeTeam}>
+                            <Input {...createForm.register("homeTeam")} />
+                          </FormField>
+                          <FormField label={t("awayTeam")} error={createForm.formState.errors.awayTeam}>
+                            <Input {...createForm.register("awayTeam")} />
+                          </FormField>
+                        </div>
+                        <FormField label={t("kickoff")} error={createForm.formState.errors.kickoffAt}>
+                          <Input type="datetime-local" {...createForm.register("kickoffAt")} />
+                        </FormField>
+                        <FormField label={t("competitionLabel")} error={createForm.formState.errors.competitionLabel}>
+                          <Input {...createForm.register("competitionLabel")} />
+                        </FormField>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
                 <Button className="w-full" disabled={createPool.isPending}>
                   <Plus className="h-4 w-4" />
                   {t("create")}

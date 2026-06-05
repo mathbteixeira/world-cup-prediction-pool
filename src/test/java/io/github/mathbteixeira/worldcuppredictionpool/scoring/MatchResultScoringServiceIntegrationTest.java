@@ -11,6 +11,7 @@ import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.MatchR
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.RecalculationResult;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.application.UpsertMatchResultCommand;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.LeaderboardEntryRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.PredictionCurrentScoreRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.ScoreEventRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.MatchStatus;
@@ -18,6 +19,7 @@ import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tournament;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.TournamentStatus;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchResultRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TeamRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TournamentRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
@@ -83,22 +85,30 @@ class MatchResultScoringServiceIntegrationTest {
     private ScoreEventRepository scoreEventRepository;
 
     @Autowired
+    private PredictionCurrentScoreRepository predictionCurrentScoreRepository;
+
+    @Autowired
     private LeaderboardEntryRepository leaderboardEntryRepository;
+
+    @Autowired
+    private MatchResultRepository matchResultRepository;
 
     private UUID matchId;
     private UUID poolId;
 
     @BeforeEach
     void setUp() {
-        leaderboardEntryRepository.deleteAll();
-        scoreEventRepository.deleteAll();
-        predictionRepository.deleteAll();
-        poolMembershipRepository.deleteAll();
-        predictionPoolRepository.deleteAll();
-        matchRepository.deleteAll();
-        teamRepository.deleteAll();
-        tournamentRepository.deleteAll();
-        userAccountRepository.deleteAll();
+        leaderboardEntryRepository.deleteAllInBatch();
+        scoreEventRepository.deleteAllInBatch();
+        predictionCurrentScoreRepository.deleteAllInBatch();
+        matchResultRepository.deleteAllInBatch();
+        predictionRepository.deleteAllInBatch();
+        poolMembershipRepository.deleteAllInBatch();
+        predictionPoolRepository.deleteAllInBatch();
+        matchRepository.deleteAllInBatch();
+        teamRepository.deleteAllInBatch();
+        tournamentRepository.deleteAllInBatch();
+        userAccountRepository.deleteAllInBatch();
 
         UserAccount owner = userAccountRepository.save(new UserAccount("owner", "owner@example.com", "hash", UserRole.USER));
         UserAccount guest = userAccountRepository.save(new UserAccount("guest", "guest@example.com", "hash", UserRole.USER));
@@ -208,5 +218,34 @@ class MatchResultScoringServiceIntegrationTest {
         assertThat(changedLeaderboard).hasSize(2);
         assertThat(changedLeaderboard.get(0).getTotalPoints()).isEqualTo(3);
         assertThat(changedLeaderboard.get(1).getTotalPoints()).isEqualTo(0);
+    }
+
+    @Test
+    void shouldScoreSingleMatchPoolAndRebuildItsLeaderboard() {
+        Match match = matchRepository.findById(matchId).orElseThrow();
+        UserAccount owner = userAccountRepository.findByEmailIgnoreCase("owner@example.com").orElseThrow();
+        UserAccount guest = userAccountRepository.findByEmailIgnoreCase("guest@example.com").orElseThrow();
+
+        PredictionPool singleMatchPool = predictionPoolRepository.save(new PredictionPool(
+                "Family Friendly",
+                "One match",
+                "INVITE02",
+                owner,
+                match
+        ));
+        poolMembershipRepository.save(new PoolMembership(singleMatchPool, owner, PoolRole.OWNER));
+        poolMembershipRepository.save(new PoolMembership(singleMatchPool, guest, PoolRole.MEMBER));
+        predictionRepository.save(new Prediction(singleMatchPool, match, owner, 2, 1, Instant.parse("2026-06-10T10:10:00Z")));
+        predictionRepository.save(new Prediction(singleMatchPool, match, guest, 0, 0, Instant.parse("2026-06-10T10:15:00Z")));
+
+        RecalculationResult result = matchResultScoringService.upsertResultAndRecalculate(
+                new UpsertMatchResultCommand(matchId, 2, 1, null, null, true)
+        );
+
+        assertThat(result.affectedPools()).isEqualTo(2);
+        var leaderboard = leaderboardEntryRepository.findAllByPoolIdOrderByRankPositionAsc(singleMatchPool.getId());
+        assertThat(leaderboard).hasSize(2);
+        assertThat(leaderboard.get(0).getTotalPoints()).isEqualTo(5);
+        assertThat(leaderboard.get(1).getTotalPoints()).isEqualTo(0);
     }
 }

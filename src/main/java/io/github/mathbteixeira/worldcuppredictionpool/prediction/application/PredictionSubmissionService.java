@@ -64,7 +64,10 @@ public class PredictionSubmissionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
         Match match = matchRepository.findById(command.matchId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Match not found"));
-        if (!pool.getTournament().getId().equals(match.getTournament().getId())) {
+        if (pool.isSingleMatchPool() && !pool.getSingleMatch().getId().equals(match.getId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Match does not belong to single-match pool");
+        }
+        if (!pool.isSingleMatchPool() && !pool.getTournament().getId().equals(match.getTournament().getId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Match does not belong to pool tournament");
         }
 
