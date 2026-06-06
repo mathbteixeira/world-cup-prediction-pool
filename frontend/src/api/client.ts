@@ -8,6 +8,7 @@ import type {
   PoolSummary,
   PredictionResponse,
   RecalculationResponse,
+  TournamentSummary,
   TokenResponse,
 } from "./types";
 
@@ -91,6 +92,7 @@ export const api = {
     request<PoolSummary>("/api/v1/pools", { method: "POST", body: JSON.stringify(body) }),
   joinPool: (inviteCode: string) =>
     request<PoolSummary>("/api/v1/pools/join", { method: "POST", body: JSON.stringify({ inviteCode }) }),
+  listTournaments: () => request<TournamentSummary[]>("/api/v1/tournaments"),
   listMatches: (tournamentId: string, filters: MatchFilters = {}) =>
     request<MatchSummary[]>(`/api/v1/tournaments/${tournamentId}/matches${queryString(filters)}`),
   submitPrediction: (poolId: string, matchId: string, body: { homeScore: number; awayScore: number }) =>

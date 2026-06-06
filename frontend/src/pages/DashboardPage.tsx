@@ -19,6 +19,7 @@ const createSchema = z.object({
   description: z.string().max(500).optional(),
   mode: z.enum(["TOURNAMENT", "SINGLE_MATCH"]),
   matchSource: z.enum(["EXISTING", "CUSTOM"]),
+  existingTournamentId: z.string().optional(),
   matchId: z.string().optional(),
   homeTeam: z.string().max(100).optional(),
   awayTeam: z.string().max(100).optional(),
@@ -28,6 +29,9 @@ const createSchema = z.object({
   if (values.mode !== "SINGLE_MATCH") return;
   if (values.matchSource === "EXISTING" && !values.matchId) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["matchId"], message: "Choose a match" });
+  }
+  if (values.matchSource === "EXISTING" && !values.existingTournamentId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["existingTournamentId"], message: "Choose a tournament" });
   }
   if (values.matchSource === "CUSTOM") {
     if (!values.homeTeam?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["homeTeam"], message: "Home team is required" });
@@ -51,10 +55,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const poolsQuery = useQuery({ queryKey: ["pools"], queryFn: api.listPools });
-  const existingMatchesQuery = useQuery({
-    queryKey: ["matches", WORLD_CUP_2026_TOURNAMENT_ID, "dashboard"],
-    queryFn: () => api.listMatches(WORLD_CUP_2026_TOURNAMENT_ID, {}),
-  });
+  const tournamentsQuery = useQuery({ queryKey: ["tournaments"], queryFn: api.listTournaments });
   const createForm = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
     defaultValues: {
@@ -62,6 +63,7 @@ export function DashboardPage() {
       description: "",
       mode: "TOURNAMENT",
       matchSource: "CUSTOM",
+      existingTournamentId: "",
       matchId: "",
       homeTeam: "",
       awayTeam: "",
@@ -72,6 +74,12 @@ export function DashboardPage() {
   const joinForm = useForm<JoinForm>({ resolver: zodResolver(joinSchema), defaultValues: { inviteCode: "" } });
   const createMode = createForm.watch("mode");
   const matchSource = createForm.watch("matchSource");
+  const existingTournamentId = createForm.watch("existingTournamentId");
+  const existingMatchesQuery = useQuery({
+    queryKey: ["matches", existingTournamentId, "dashboard"],
+    queryFn: () => api.listMatches(existingTournamentId!, {}),
+    enabled: createMode === "SINGLE_MATCH" && matchSource === "EXISTING" && Boolean(existingTournamentId),
+  });
 
   const createPool = useMutation({
     mutationFn: (values: CreateForm) => {
@@ -238,17 +246,38 @@ export function DashboardPage() {
                       </Button>
                     </div>
                     {matchSource === "EXISTING" ? (
-                      <FormField label={t("match")} error={createForm.formState.errors.matchId}>
-                        <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...createForm.register("matchId")}>
-                          <option value="">{existingMatchesQuery.isLoading ? t("loadingMatches") : t("selectMatch")}</option>
-                          {(existingMatchesQuery.data ?? []).map((match) => (
-                            <option key={match.matchId} value={match.matchId}>
-                              {match.homeTeam?.fifaCode ?? match.homePlaceholder ?? "TBD"} vs {match.awayTeam?.fifaCode ?? match.awayPlaceholder ?? "TBD"} -{" "}
-                              {new Date(match.kickoffAt).toLocaleString()}
-                            </option>
-                          ))}
-                        </select>
-                      </FormField>
+                      <div className="space-y-4">
+                        <FormField label={t("tournament")} error={createForm.formState.errors.existingTournamentId}>
+                          <select
+                            className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                            {...createForm.register("existingTournamentId", {
+                              onChange: () => createForm.setValue("matchId", ""),
+                            })}
+                          >
+                            <option value="">{t("selectTournament")}</option>
+                            {(tournamentsQuery.data ?? []).map((tournament) => (
+                              <option key={tournament.tournamentId} value={tournament.tournamentId}>
+                                {tournament.name} {tournament.seasonYear}
+                              </option>
+                            ))}
+                          </select>
+                        </FormField>
+                        <FormField label={t("match")} error={createForm.formState.errors.matchId}>
+                          <select
+                            className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-muted"
+                            disabled={!existingTournamentId}
+                            {...createForm.register("matchId")}
+                          >
+                            <option value="">{existingMatchesQuery.isLoading ? t("loadingMatches") : t("selectMatch")}</option>
+                            {(existingMatchesQuery.data ?? []).map((match) => (
+                              <option key={match.matchId} value={match.matchId}>
+                                {match.homeTeam?.fifaCode ?? match.homePlaceholder ?? "TBD"} vs {match.awayTeam?.fifaCode ?? match.awayPlaceholder ?? "TBD"} -{" "}
+                                {new Date(match.kickoffAt).toLocaleString()}
+                              </option>
+                            ))}
+                          </select>
+                        </FormField>
+                      </div>
                     ) : (
                       <div className="space-y-4">
                         <div className="grid gap-3 sm:grid-cols-2">

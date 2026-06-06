@@ -33,4 +33,18 @@ describe("api client", () => {
       "Email is already in use",
     );
   });
+
+  it("lists tournaments from the tournament discovery endpoint", async () => {
+    configureApiClient({ getToken: () => "abc", onUnauthorized: vi.fn() });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await api.listTournaments();
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:8080/api/v1/tournaments");
+  });
 });
