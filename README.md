@@ -204,6 +204,7 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `POST /api/v1/pools`
 - `GET /api/v1/pools`
 - `POST /api/v1/pools/{poolId}/join`
+- `GET /api/v1/tournaments`
 - `GET /api/v1/tournaments/{tournamentId}/matches`
 - `PUT /api/v1/pools/{poolId}/matches/{matchId}/prediction`
 - `GET /api/v1/pools/{poolId}/predictions`
@@ -307,7 +308,7 @@ Example response:
 }
 ```
 
-Single-match pools can point at an existing match:
+Single-match pools can point at an existing match. The frontend first lists tournaments with `GET /api/v1/tournaments`, then loads matches only for the selected tournament.
 
 ```bash
 curl -sS -X POST "$BASE_URL/api/v1/pools" \
@@ -341,6 +342,8 @@ curl -sS -X POST "$BASE_URL/api/v1/pools" \
 ```
 
 The custom-match path creates a backing tournament, two team records, and one scheduled match. The returned `singleMatchId` is the match id to use when submitting predictions or upserting the result.
+
+Seed data includes a `National Team Friendlies` tournament with Brazil vs Egypt as a scheduled friendly at `2026-06-06T22:00:00Z`.
 
 ### 4) Join pool
 
@@ -576,6 +579,7 @@ curl -sS -X PUT "$BASE_URL/api/v1/admin/matches/33333333-3333-3333-3333-33333333
 
 - Flyway baseline schema (`V1`) + scoring/recalculation schema (`V2`)
 - single-match pool scope migration (`V9`) adds `pool_scope` and `single_match_id`
+- national-team friendly seed migration (`V10`) adds the `National Team Friendlies` tournament and Brazil vs Egypt
 - PostgreSQL-specific constraints/indexes for idempotency and ranking access paths
 
 ---
@@ -617,7 +621,7 @@ npm install
 npm run dev
 ```
 
-The app starts at `http://localhost:5173` and lets you create either a tournament pool or a single-match pool. For a custom friendly, choose **Single-match pool**, then **Custom match**, and enter the teams, kickoff time, and optional competition label.
+The app starts at `http://localhost:5173` and lets you create either a tournament pool or a single-match pool. For an existing single match, choose **Single-match pool**, then **Existing match**, select a tournament, and then select a match. For a custom friendly, choose **Custom match** and enter the teams, kickoff time, and optional competition label.
 
 ---
 

@@ -27,6 +27,14 @@ export type PoolSummary = {
   membershipRole: "OWNER" | "MEMBER";
 };
 
+export type TournamentSummary = {
+  tournamentId: string;
+  name: string;
+  slug: string;
+  seasonYear: string;
+  status: "DRAFT" | "OPEN" | "IN_PROGRESS" | "FINISHED";
+};
+
 export type CreatePoolRequest =
   | {
       name: string;
