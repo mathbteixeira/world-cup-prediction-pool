@@ -161,7 +161,7 @@ Scoring logic is isolated from controllers/repositories in `scoring.engine`:
 
 ### Current rules (v1)
 
-- exact score: **5**
+- exact score: **7**
 - correct winner/draw: **3**
 - correct goal difference bonus: **2** (when outcome is correct and exact score is not)
 - wrong prediction: **0**

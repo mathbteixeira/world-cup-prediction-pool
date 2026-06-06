@@ -205,7 +205,7 @@ class MatchResultScoringServiceIntegrationTest {
 
         var firstLeaderboard = leaderboardEntryRepository.findAllByPoolIdOrderByRankPositionAsc(poolId);
         assertThat(firstLeaderboard).hasSize(2);
-        assertThat(firstLeaderboard.get(0).getTotalPoints()).isEqualTo(5);
+        assertThat(firstLeaderboard.get(0).getTotalPoints()).isEqualTo(7);
         assertThat(firstLeaderboard.get(1).getTotalPoints()).isEqualTo(0);
 
         RecalculationResult replay = matchResultScoringService.upsertResultAndRecalculate(
@@ -253,7 +253,7 @@ class MatchResultScoringServiceIntegrationTest {
         assertThat(result.affectedPools()).isEqualTo(2);
         var leaderboard = leaderboardEntryRepository.findAllByPoolIdOrderByRankPositionAsc(singleMatchPool.getId());
         assertThat(leaderboard).hasSize(2);
-        assertThat(leaderboard.get(0).getTotalPoints()).isEqualTo(5);
+        assertThat(leaderboard.get(0).getTotalPoints()).isEqualTo(7);
         assertThat(leaderboard.get(1).getTotalPoints()).isEqualTo(0);
     }
 
@@ -281,6 +281,6 @@ class MatchResultScoringServiceIntegrationTest {
         var leaderboard = leaderboardEntryRepository.findAllByPoolIdOrderByRankPositionAsc(singleMatchPool.getId());
         assertThat(leaderboard).hasSize(2);
         assertThat(leaderboard.get(0).getManagedParticipant().getDisplayName()).isEqualTo("Grandma");
-        assertThat(leaderboard.get(0).getTotalPoints()).isEqualTo(5);
+        assertThat(leaderboard.get(0).getTotalPoints()).isEqualTo(7);
     }
 }
