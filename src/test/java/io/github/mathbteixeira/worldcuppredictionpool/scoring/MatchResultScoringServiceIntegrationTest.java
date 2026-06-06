@@ -258,6 +258,7 @@ class MatchResultScoringServiceIntegrationTest {
     }
 
     @Test
+    @Transactional
     void shouldIncludeManagedParticipantsInLeaderboardAfterRecalculation() {
         Match match = matchRepository.findById(matchId).orElseThrow();
         UserAccount owner = userAccountRepository.findByEmailIgnoreCase("owner@example.com").orElseThrow();
