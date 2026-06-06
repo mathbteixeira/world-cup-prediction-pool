@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.UUID;
 
 public interface ScoreEventRepository extends JpaRepository<ScoreEvent, UUID> {
@@ -21,6 +22,7 @@ public interface ScoreEventRepository extends JpaRepository<ScoreEvent, UUID> {
                 updated_at,
                 pool_id,
                 user_id,
+                managed_participant_id,
                 match_id,
                 prediction_id,
                 points_awarded,
@@ -37,6 +39,7 @@ public interface ScoreEventRepository extends JpaRepository<ScoreEvent, UUID> {
                 :updatedAt,
                 :poolId,
                 :userId,
+                :managedParticipantId,
                 :matchId,
                 :predictionId,
                 :pointsAwarded,
@@ -54,6 +57,7 @@ public interface ScoreEventRepository extends JpaRepository<ScoreEvent, UUID> {
                              @Param("updatedAt") Instant updatedAt,
                              @Param("poolId") UUID poolId,
                              @Param("userId") UUID userId,
+                             @Param("managedParticipantId") UUID managedParticipantId,
                              @Param("matchId") UUID matchId,
                              @Param("predictionId") UUID predictionId,
                              @Param("pointsAwarded") int pointsAwarded,
@@ -64,4 +68,7 @@ public interface ScoreEventRepository extends JpaRepository<ScoreEvent, UUID> {
                              @Param("ruleVersion") int ruleVersion,
                              @Param("resultChecksum") String resultChecksum,
                              @Param("calculatedAt") Instant calculatedAt);
+
+    @Modifying
+    void deleteByPredictionIdIn(Collection<UUID> predictionIds);
 }

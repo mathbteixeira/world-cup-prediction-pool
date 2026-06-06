@@ -1,9 +1,13 @@
 package io.github.mathbteixeira.worldcuppredictionpool.prediction.application;
 
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.ManagedParticipant;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.ManagedParticipantRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PoolPredictionResponse;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PredictionManagedParticipantResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PredictionUserResponse;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.persistence.PredictionRepository;
@@ -36,6 +40,7 @@ public class PredictionSubmissionService {
 
     private final PredictionRepository predictionRepository;
     private final PredictionPoolRepository predictionPoolRepository;
+    private final ManagedParticipantRepository managedParticipantRepository;
     private final PoolMembershipRepository poolMembershipRepository;
     private final MatchRepository matchRepository;
     private final MatchResultRepository matchResultRepository;
@@ -44,6 +49,7 @@ public class PredictionSubmissionService {
 
     public PredictionSubmissionService(PredictionRepository predictionRepository,
                                        PredictionPoolRepository predictionPoolRepository,
+                                       ManagedParticipantRepository managedParticipantRepository,
                                        PoolMembershipRepository poolMembershipRepository,
                                        MatchRepository matchRepository,
                                        MatchResultRepository matchResultRepository,
@@ -51,11 +57,49 @@ public class PredictionSubmissionService {
                                        Clock clock) {
         this.predictionRepository = predictionRepository;
         this.predictionPoolRepository = predictionPoolRepository;
+        this.managedParticipantRepository = managedParticipantRepository;
         this.poolMembershipRepository = poolMembershipRepository;
         this.matchRepository = matchRepository;
         this.matchResultRepository = matchResultRepository;
         this.userAccountRepository = userAccountRepository;
         this.clock = clock;
+    }
+
+    @Transactional
+    public Prediction submitForManagedParticipant(UUID poolId, UUID participantId, String ownerEmail, int homeScore, int awayScore) {
+        PredictionPool pool = predictionPoolRepository.findById(poolId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
+        if (!pool.isSingleMatchPool()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Managed participant predictions are supported only for single-match pools");
+        }
+
+        UserAccount owner = userAccountRepository.findByEmailIgnoreCase(ownerEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        poolMembershipRepository.findByPoolIdAndUserId(poolId, owner.getId())
+                .filter(membership -> membership.getRole() == PoolRole.OWNER)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the pool owner can manage participant predictions"));
+
+        ManagedParticipant participant = managedParticipantRepository.findByPoolIdAndId(poolId, participantId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Managed participant not found"));
+        Match match = pool.getSingleMatch();
+        Instant now = Instant.now(clock);
+        if (!match.canAcceptPredictionsAt(now)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Predictions are closed for this match");
+        }
+
+        return predictionRepository.findByPoolIdAndMatchIdAndManagedParticipantId(poolId, match.getId(), participantId)
+                .map(existing -> {
+                    existing.resubmit(homeScore, awayScore, now);
+                    return predictionRepository.save(existing);
+                })
+                .orElseGet(() -> predictionRepository.save(new Prediction(
+                        pool,
+                        match,
+                        participant,
+                        homeScore,
+                        awayScore,
+                        now
+                )));
     }
 
     @Transactional
@@ -130,7 +174,8 @@ public class PredictionSubmissionService {
     }
 
     private boolean isVisibleToUser(Prediction prediction, UserAccount user, Instant now) {
-        return prediction.getUser().getId().equals(user.getId())
+        return (prediction.getUser() != null && prediction.getUser().getId().equals(user.getId()))
+                || prediction.isManagedParticipantPrediction()
                 || !prediction.getMatch().canAcceptPredictionsAt(now);
     }
 
@@ -139,11 +184,13 @@ public class PredictionSubmissionService {
                                               Optional<MatchResult> result,
                                               Instant now) {
         UserAccount predictionUser = prediction.getUser();
+        ManagedParticipant managedParticipant = prediction.getManagedParticipant();
         return new PoolPredictionResponse(
                 prediction.getId(),
                 prediction.getPool().getId(),
-                new PredictionUserResponse(predictionUser.getId(), predictionUser.getUsername()),
-                predictionUser.getId().equals(currentUser.getId()),
+                predictionUser == null ? null : new PredictionUserResponse(predictionUser.getId(), predictionUser.getUsername()),
+                managedParticipant == null ? null : new PredictionManagedParticipantResponse(managedParticipant.getId(), managedParticipant.getDisplayName()),
+                predictionUser != null && predictionUser.getId().equals(currentUser.getId()),
                 toMatchResponse(prediction.getMatch(), result, now),
                 prediction.getPredictedHomeScore(),
                 prediction.getPredictedAwayScore(),

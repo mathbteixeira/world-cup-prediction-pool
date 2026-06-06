@@ -11,5 +11,7 @@ public interface LeaderboardEntryRepository extends JpaRepository<LeaderboardEnt
 
     void deleteByPoolIdIn(Collection<UUID> poolIds);
 
+    void deleteByManagedParticipantId(UUID managedParticipantId);
+
     List<LeaderboardEntry> findAllByPoolIdOrderByRankPositionAsc(UUID poolId);
 }

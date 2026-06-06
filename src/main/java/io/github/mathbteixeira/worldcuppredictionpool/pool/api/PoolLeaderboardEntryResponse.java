@@ -6,6 +6,7 @@ import java.util.UUID;
 public record PoolLeaderboardEntryResponse(
         UUID poolId,
         UUID userId,
+        UUID managedParticipantId,
         String username,
         int totalPoints,
         int rankPosition,

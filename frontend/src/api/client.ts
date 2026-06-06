@@ -2,6 +2,7 @@ import type {
   ApiErrorResponse,
   CreatePoolRequest,
   LeaderboardEntry,
+  ManagedParticipant,
   MatchFilters,
   MatchSummary,
   PoolPrediction,
@@ -60,7 +61,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new ApiError(response.status, payload?.message ?? response.statusText, payload);
   }
 
-  return response.json() as Promise<T>;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 async function parseError(response: Response) {
@@ -102,6 +104,23 @@ export const api = {
     }),
   listPredictions: (poolId: string) => request<PoolPrediction[]>(`/api/v1/pools/${poolId}/predictions`),
   leaderboard: (poolId: string) => request<LeaderboardEntry[]>(`/api/v1/pools/${poolId}/leaderboard`),
+  listManagedParticipants: (poolId: string) => request<ManagedParticipant[]>(`/api/v1/pools/${poolId}/managed-participants`),
+  createManagedParticipant: (poolId: string, body: { name: string }) =>
+    request<ManagedParticipant>(`/api/v1/pools/${poolId}/managed-participants`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  removeManagedParticipant: (poolId: string, participantId: string) =>
+    request<void>(`/api/v1/pools/${poolId}/managed-participants/${participantId}`, { method: "DELETE" }),
+  submitManagedParticipantPrediction: (
+    poolId: string,
+    participantId: string,
+    body: { homeScore: number; awayScore: number },
+  ) =>
+    request<PredictionResponse>(`/api/v1/pools/${poolId}/managed-participants/${participantId}/prediction`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
   upsertResult: (
     matchId: string,
     body: {

@@ -2,6 +2,7 @@ package io.github.mathbteixeira.worldcuppredictionpool.prediction.persistence;
 
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,11 +16,20 @@ public interface PredictionRepository extends JpaRepository<Prediction, UUID> {
 
     Optional<Prediction> findByPoolIdAndMatchIdAndUserId(UUID poolId, UUID matchId, UUID userId);
 
+    Optional<Prediction> findByPoolIdAndMatchIdAndManagedParticipantId(UUID poolId, UUID matchId, UUID managedParticipantId);
+
+    @Query("select prediction.id from Prediction prediction where prediction.managedParticipant.id = :managedParticipantId")
+    List<UUID> findIdsByManagedParticipantId(@Param("managedParticipantId") UUID managedParticipantId);
+
+    @Modifying
+    void deleteByManagedParticipantId(UUID managedParticipantId);
+
     @Query("""
             select prediction
             from Prediction prediction
             join fetch prediction.pool pool
-            join fetch prediction.user user
+            left join fetch prediction.user user
+            left join fetch prediction.managedParticipant managedParticipant
             join fetch prediction.match match
             join fetch match.tournament tournament
             join fetch match.homeTeam homeTeam

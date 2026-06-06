@@ -1,5 +1,6 @@
 package io.github.mathbteixeira.worldcuppredictionpool.pool.api;
 
+import io.github.mathbteixeira.worldcuppredictionpool.pool.application.ManagedParticipantService;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.application.PoolService;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.application.PoolLeaderboardService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,10 +30,14 @@ public class PoolController {
 
     private final PoolService poolService;
     private final PoolLeaderboardService poolLeaderboardService;
+    private final ManagedParticipantService managedParticipantService;
 
-    public PoolController(PoolService poolService, PoolLeaderboardService poolLeaderboardService) {
+    public PoolController(PoolService poolService,
+                          PoolLeaderboardService poolLeaderboardService,
+                          ManagedParticipantService managedParticipantService) {
         this.poolService = poolService;
         this.poolLeaderboardService = poolLeaderboardService;
+        this.managedParticipantService = managedParticipantService;
     }
 
     @PostMapping
@@ -80,6 +86,53 @@ public class PoolController {
             @Parameter(description = "Prediction pool id") @PathVariable UUID poolId,
             Authentication authentication) {
         return poolLeaderboardService.listPoolLeaderboard(poolId, authentication.getName());
+    }
+
+    @PostMapping("/{poolId}/managed-participants")
+    @Operation(summary = "Create managed participant", description = "Creates an owner-managed participant for a single-match pool.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Managed participant created"),
+            @ApiResponse(responseCode = "400", description = "Pool is not a single-match pool"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Current user is not the pool owner"),
+            @ApiResponse(responseCode = "404", description = "Pool not found")
+    })
+    public ManagedParticipantResponse createManagedParticipant(
+            @Parameter(description = "Prediction pool id") @PathVariable UUID poolId,
+            @Valid @RequestBody CreateManagedParticipantRequest request,
+            Authentication authentication) {
+        return managedParticipantService.create(poolId, request.name(), authentication.getName());
+    }
+
+    @GetMapping("/{poolId}/managed-participants")
+    @Operation(summary = "List managed participants", description = "Lists owner-managed participants for a single-match pool.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Managed participants returned"),
+            @ApiResponse(responseCode = "400", description = "Pool is not a single-match pool"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Current user is not the pool owner"),
+            @ApiResponse(responseCode = "404", description = "Pool not found")
+    })
+    public List<ManagedParticipantResponse> listManagedParticipants(
+            @Parameter(description = "Prediction pool id") @PathVariable UUID poolId,
+            Authentication authentication) {
+        return managedParticipantService.list(poolId, authentication.getName());
+    }
+
+    @DeleteMapping("/{poolId}/managed-participants/{participantId}")
+    @Operation(summary = "Remove managed participant", description = "Removes an owner-managed participant from a single-match pool.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Managed participant removed"),
+            @ApiResponse(responseCode = "400", description = "Pool is not a single-match pool"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Current user is not the pool owner"),
+            @ApiResponse(responseCode = "404", description = "Pool or managed participant not found")
+    })
+    public void removeManagedParticipant(
+            @Parameter(description = "Prediction pool id") @PathVariable UUID poolId,
+            @Parameter(description = "Managed participant id") @PathVariable UUID participantId,
+            Authentication authentication) {
+        managedParticipantService.remove(poolId, participantId, authentication.getName());
     }
 
     @PostMapping("/{poolId}/join")

@@ -40,8 +40,9 @@ public class PoolLeaderboardService {
         return leaderboardEntryRepository.findAllByPoolIdOrderByRankPositionAsc(poolId).stream()
                 .map(entry -> new PoolLeaderboardEntryResponse(
                         entry.getPool().getId(),
-                        entry.getUser().getId(),
-                        entry.getUser().getUsername(),
+                        entry.getUser() == null ? null : entry.getUser().getId(),
+                        entry.getManagedParticipant() == null ? null : entry.getManagedParticipant().getId(),
+                        entry.getParticipantName(),
                         entry.getTotalPoints(),
                         entry.getRankPosition(),
                         entry.getRecalculatedAt()

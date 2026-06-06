@@ -47,4 +47,33 @@ describe("api client", () => {
 
     expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:8080/api/v1/tournaments");
   });
+
+  it("creates a managed participant and submits their prediction", async () => {
+    configureApiClient({ getToken: () => "abc", onUnauthorized: vi.fn() });
+    const poolId = "pool-1";
+    const participantId = "participant-1";
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ participantId, poolId, name: "Grandma" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ predictionId: "prediction-1", poolId, matchId: "match-1", homeScore: 2, awayScore: 1 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    await api.createManagedParticipant(poolId, { name: "Grandma" });
+    await api.submitManagedParticipantPrediction(poolId, participantId, { homeScore: 2, awayScore: 1 });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:8080/api/v1/pools/pool-1/managed-participants");
+    expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      "http://localhost:8080/api/v1/pools/pool-1/managed-participants/participant-1/prediction",
+    );
+    expect(fetchMock.mock.calls[1][1]?.method).toBe("PUT");
+  });
 });

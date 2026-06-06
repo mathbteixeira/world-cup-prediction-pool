@@ -1,9 +1,11 @@
 package io.github.mathbteixeira.worldcuppredictionpool.prediction;
 
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.ManagedParticipant;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.ManagedParticipantRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.api.PoolPredictionResponse;
@@ -52,6 +54,9 @@ class PredictionSubmissionServiceTest {
     private PredictionPoolRepository predictionPoolRepository;
 
     @Mock
+    private ManagedParticipantRepository managedParticipantRepository;
+
+    @Mock
     private PoolMembershipRepository poolMembershipRepository;
 
     @Mock
@@ -70,6 +75,7 @@ class PredictionSubmissionServiceTest {
         predictionSubmissionService = new PredictionSubmissionService(
                 predictionRepository,
                 predictionPoolRepository,
+                managedParticipantRepository,
                 poolMembershipRepository,
                 matchRepository,
                 matchResultRepository,
@@ -354,6 +360,75 @@ class PredictionSubmissionServiceTest {
                     assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(exception.getReason()).isEqualTo("Match does not belong to single-match pool");
                 });
+    }
+
+    @Test
+    void ownerCanCreateAndUpdateManagedParticipantPrediction() {
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
+        Tournament tournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
+        setId(owner, UUID.randomUUID());
+        setId(tournament, UUID.randomUUID());
+        Team home = new Team(tournament, "Brazil", "BRA");
+        Team away = new Team(tournament, "Egypt", "EGY");
+        Match match = new Match(
+                tournament,
+                home,
+                away,
+                Instant.parse("2027-06-01T13:00:00Z"),
+                "FRIENDLY",
+                MatchStatus.SCHEDULED
+        );
+        UUID matchId = UUID.randomUUID();
+        setId(match, matchId);
+        PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, match);
+        UUID poolId = UUID.randomUUID();
+        setId(pool, poolId);
+        ManagedParticipant participant = new ManagedParticipant(pool, "Grandma");
+        UUID participantId = UUID.randomUUID();
+        setId(participant, participantId);
+        Prediction existing = new Prediction(pool, match, participant, 0, 0, Instant.parse("2027-05-31T10:00:00Z"));
+
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(owner));
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, owner.getId()))
+                .thenReturn(Optional.of(new PoolMembership(pool, owner, PoolRole.OWNER)));
+        when(managedParticipantRepository.findByPoolIdAndId(poolId, participantId)).thenReturn(Optional.of(participant));
+        when(predictionRepository.findByPoolIdAndMatchIdAndManagedParticipantId(poolId, matchId, participantId))
+                .thenReturn(Optional.of(existing));
+        when(predictionRepository.save(existing)).thenReturn(existing);
+
+        Prediction prediction = predictionSubmissionService.submitForManagedParticipant(poolId, participantId, "owner@example.com", 2, 1);
+
+        assertThat(prediction.getManagedParticipant()).isEqualTo(participant);
+        assertThat(prediction.getUser()).isNull();
+        assertThat(prediction.getPredictedHomeScore()).isEqualTo(2);
+        assertThat(prediction.getPredictedAwayScore()).isEqualTo(1);
+    }
+
+    @Test
+    void nonOwnerCannotCreateOrUpdateManagedParticipantPrediction() {
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "hash", UserRole.USER);
+        UserAccount member = new UserAccount("member", "member@example.com", "hash", UserRole.USER);
+        Tournament tournament = new Tournament("World Cup", "wc-2026", "2026", TournamentStatus.OPEN);
+        setId(owner, UUID.randomUUID());
+        setId(member, UUID.randomUUID());
+        setId(tournament, UUID.randomUUID());
+        Team home = new Team(tournament, "Brazil", "BRA");
+        Team away = new Team(tournament, "Egypt", "EGY");
+        Match match = new Match(tournament, home, away, Instant.parse("2027-06-01T13:00:00Z"), "FRIENDLY", MatchStatus.SCHEDULED);
+        PredictionPool pool = new PredictionPool("Pool", "desc", "ABC12345", owner, match);
+        UUID poolId = UUID.randomUUID();
+        UUID participantId = UUID.randomUUID();
+        setId(pool, poolId);
+
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("member@example.com")).thenReturn(Optional.of(member));
+        when(poolMembershipRepository.findByPoolIdAndUserId(poolId, member.getId()))
+                .thenReturn(Optional.of(new PoolMembership(pool, member, PoolRole.MEMBER)));
+
+        assertThatThrownBy(() -> predictionSubmissionService.submitForManagedParticipant(poolId, participantId, "member@example.com", 2, 1))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
     }
 
     private static void setId(BaseEntity entity, UUID id) {

@@ -1,7 +1,9 @@
 package io.github.mathbteixeira.worldcuppredictionpool.scoring.application;
 
+import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.ManagedParticipant;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.ManagedParticipantRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.persistence.PredictionRepository;
@@ -19,7 +21,6 @@ import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.MatchResult;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchResultRepository;
-import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +52,7 @@ public class MatchResultScoringService {
     private final PredictionCurrentScoreRepository predictionCurrentScoreRepository;
     private final LeaderboardEntryRepository leaderboardEntryRepository;
     private final PoolMembershipRepository poolMembershipRepository;
+    private final ManagedParticipantRepository managedParticipantRepository;
     private final PredictionScoringEngine predictionScoringEngine;
     private final ScoringRuleResolver scoringRuleResolver;
     private final Clock clock;
@@ -62,6 +64,7 @@ public class MatchResultScoringService {
                                      PredictionCurrentScoreRepository predictionCurrentScoreRepository,
                                      LeaderboardEntryRepository leaderboardEntryRepository,
                                      PoolMembershipRepository poolMembershipRepository,
+                                     ManagedParticipantRepository managedParticipantRepository,
                                      PredictionScoringEngine predictionScoringEngine,
                                      ScoringRuleResolver scoringRuleResolver,
                                      Clock clock) {
@@ -72,6 +75,7 @@ public class MatchResultScoringService {
         this.predictionCurrentScoreRepository = predictionCurrentScoreRepository;
         this.leaderboardEntryRepository = leaderboardEntryRepository;
         this.poolMembershipRepository = poolMembershipRepository;
+        this.managedParticipantRepository = managedParticipantRepository;
         this.predictionScoringEngine = predictionScoringEngine;
         this.scoringRuleResolver = scoringRuleResolver;
         this.clock = clock;
@@ -131,7 +135,8 @@ public class MatchResultScoringService {
                     now,
                     now,
                     prediction.getPool().getId(),
-                    prediction.getUser().getId(),
+                    prediction.getUser() == null ? null : prediction.getUser().getId(),
+                    prediction.getManagedParticipant() == null ? null : prediction.getManagedParticipant().getId(),
                     prediction.getMatch().getId(),
                     prediction.getId(),
                     breakdown.totalPoints(),
@@ -149,16 +154,7 @@ public class MatchResultScoringService {
                         existing.updateScore(breakdown.totalPoints(), rule.version(), checksum, now);
                         return predictionCurrentScoreRepository.save(existing);
                     })
-                    .orElseGet(() -> predictionCurrentScoreRepository.save(new PredictionCurrentScore(
-                            prediction,
-                            prediction.getPool(),
-                            prediction.getUser(),
-                            prediction.getMatch(),
-                            breakdown.totalPoints(),
-                            rule.version(),
-                            checksum,
-                            now
-                    )));
+                    .orElseGet(() -> predictionCurrentScoreRepository.save(createCurrentScore(prediction, breakdown, rule, checksum, now)));
         }
 
         Set<UUID> affectedPools = predictions.stream()
@@ -182,53 +178,122 @@ public class MatchResultScoringService {
         leaderboardEntryRepository.deleteByPoolIdIn(poolIds);
 
         List<PoolMembership> memberships = poolMembershipRepository.findAllByPoolIdIn(poolIds);
-        Map<UUID, Map<UUID, Integer>> totalsByPoolAndUser = new LinkedHashMap<>();
+        List<ManagedParticipant> managedParticipants = managedParticipantRepository.findAllByPoolIdIn(poolIds);
+        Map<UUID, PredictionPool> poolsById = memberships.stream()
+                .collect(Collectors.toMap(membership -> membership.getPool().getId(), PoolMembership::getPool, (first, ignored) -> first));
+        managedParticipants.forEach(participant -> poolsById.putIfAbsent(participant.getPool().getId(), participant.getPool()));
+        Map<UUID, PoolMembership> membershipsByUserId = memberships.stream()
+                .collect(Collectors.toMap(membership -> membership.getUser().getId(), membership -> membership, (first, ignored) -> first));
+        Map<UUID, ManagedParticipant> managedParticipantsById = managedParticipants.stream()
+                .collect(Collectors.toMap(ManagedParticipant::getId, participant -> participant));
+
+        Map<UUID, Map<ParticipantKey, Integer>> totalsByPoolAndParticipant = new LinkedHashMap<>();
         for (PoolMembership membership : memberships) {
-            totalsByPoolAndUser
+            totalsByPoolAndParticipant
                     .computeIfAbsent(membership.getPool().getId(), ignored -> new LinkedHashMap<>())
-                    .putIfAbsent(membership.getUser().getId(), 0);
+                    .putIfAbsent(ParticipantKey.user(membership.getUser().getId()), 0);
+        }
+        for (ManagedParticipant participant : managedParticipants) {
+            totalsByPoolAndParticipant
+                    .computeIfAbsent(participant.getPool().getId(), ignored -> new LinkedHashMap<>())
+                    .putIfAbsent(ParticipantKey.managed(participant.getId()), 0);
         }
 
         for (PredictionCurrentScoreRepository.PoolUserTotalProjection aggregate : predictionCurrentScoreRepository.aggregateTotalsByPoolAndUser(poolIds)) {
-            totalsByPoolAndUser
+            totalsByPoolAndParticipant
                     .computeIfAbsent(aggregate.getPoolId(), ignored -> new LinkedHashMap<>())
-                    .put(aggregate.getUserId(), Math.toIntExact(Objects.requireNonNullElse(aggregate.getTotalPoints(), 0L)));
+                    .put(ParticipantKey.user(aggregate.getUserId()), Math.toIntExact(Objects.requireNonNullElse(aggregate.getTotalPoints(), 0L)));
+        }
+        for (PredictionCurrentScoreRepository.PoolManagedParticipantTotalProjection aggregate : predictionCurrentScoreRepository.aggregateTotalsByPoolAndManagedParticipant(poolIds)) {
+            totalsByPoolAndParticipant
+                    .computeIfAbsent(aggregate.getPoolId(), ignored -> new LinkedHashMap<>())
+                    .put(ParticipantKey.managed(aggregate.getManagedParticipantId()), Math.toIntExact(Objects.requireNonNullElse(aggregate.getTotalPoints(), 0L)));
         }
 
         List<LeaderboardEntry> rebuilt = new ArrayList<>();
-        for (Map.Entry<UUID, Map<UUID, Integer>> poolEntry : totalsByPoolAndUser.entrySet()) {
-            List<Map.Entry<UUID, Integer>> ranking = poolEntry.getValue().entrySet().stream()
+        for (Map.Entry<UUID, Map<ParticipantKey, Integer>> poolEntry : totalsByPoolAndParticipant.entrySet()) {
+            List<Map.Entry<ParticipantKey, Integer>> ranking = poolEntry.getValue().entrySet().stream()
                     .sorted(Comparator
-                            .comparing(Map.Entry<UUID, Integer>::getValue, Comparator.reverseOrder())
-                            .thenComparing(entry -> entry.getKey().toString()))
+                            .comparing(Map.Entry<ParticipantKey, Integer>::getValue, Comparator.reverseOrder())
+                            .thenComparing(entry -> entry.getKey().sortValue()))
                     .toList();
 
             int rank = 1;
             Integer previousTotal = null;
             for (int index = 0; index < ranking.size(); index++) {
-                Map.Entry<UUID, Integer> userTotal = ranking.get(index);
-                if (previousTotal != null && !previousTotal.equals(userTotal.getValue())) {
+                Map.Entry<ParticipantKey, Integer> participantTotal = ranking.get(index);
+                if (previousTotal != null && !previousTotal.equals(participantTotal.getValue())) {
                     rank = index + 1;
                 }
-                previousTotal = userTotal.getValue();
+                previousTotal = participantTotal.getValue();
 
-                PredictionPool poolReference = memberships.stream()
-                        .filter(m -> m.getPool().getId().equals(poolEntry.getKey()))
-                        .findFirst()
-                        .orElseThrow()
-                        .getPool();
-                UserAccount userReference = memberships.stream()
-                        .filter(m -> m.getUser().getId().equals(userTotal.getKey()))
-                        .findFirst()
-                        .orElseThrow()
-                        .getUser();
-
-                rebuilt.add(new LeaderboardEntry(poolReference, userReference, userTotal.getValue(), rank, now));
+                ParticipantKey participantKey = participantTotal.getKey();
+                PredictionPool poolReference = poolsById.get(poolEntry.getKey());
+                if (participantKey.managed()) {
+                    rebuilt.add(new LeaderboardEntry(
+                            poolReference,
+                            managedParticipantsById.get(participantKey.id()),
+                            participantTotal.getValue(),
+                            rank,
+                            now
+                    ));
+                } else {
+                    rebuilt.add(new LeaderboardEntry(
+                            poolReference,
+                            membershipsByUserId.get(participantKey.id()).getUser(),
+                            participantTotal.getValue(),
+                            rank,
+                            now
+                    ));
+                }
             }
         }
 
         if (!rebuilt.isEmpty()) {
             leaderboardEntryRepository.saveAll(rebuilt);
+        }
+    }
+
+    private PredictionCurrentScore createCurrentScore(Prediction prediction,
+                                                      ScoreBreakdown breakdown,
+                                                      ScoringRuleDefinition rule,
+                                                      String checksum,
+                                                      Instant now) {
+        if (prediction.isManagedParticipantPrediction()) {
+            return new PredictionCurrentScore(
+                    prediction,
+                    prediction.getPool(),
+                    prediction.getManagedParticipant(),
+                    prediction.getMatch(),
+                    breakdown.totalPoints(),
+                    rule.version(),
+                    checksum,
+                    now
+            );
+        }
+        return new PredictionCurrentScore(
+                prediction,
+                prediction.getPool(),
+                prediction.getUser(),
+                prediction.getMatch(),
+                breakdown.totalPoints(),
+                rule.version(),
+                checksum,
+                now
+        );
+    }
+
+    private record ParticipantKey(UUID id, boolean managed) {
+        static ParticipantKey user(UUID id) {
+            return new ParticipantKey(id, false);
+        }
+
+        static ParticipantKey managed(UUID id) {
+            return new ParticipantKey(id, true);
+        }
+
+        String sortValue() {
+            return (managed ? "managed:" : "user:") + id;
         }
     }
 

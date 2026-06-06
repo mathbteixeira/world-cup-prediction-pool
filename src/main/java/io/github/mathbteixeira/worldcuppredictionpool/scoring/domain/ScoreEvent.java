@@ -1,6 +1,7 @@
 package io.github.mathbteixeira.worldcuppredictionpool.scoring.domain;
 
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.ManagedParticipant;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
@@ -25,9 +26,13 @@ public class ScoreEvent extends BaseEntity {
     @JoinColumn(name = "pool_id", nullable = false)
     private PredictionPool pool;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private UserAccount user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "managed_participant_id")
+    private ManagedParticipant managedParticipant;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "match_id", nullable = false)
@@ -96,6 +101,10 @@ public class ScoreEvent extends BaseEntity {
 
     public UserAccount getUser() {
         return user;
+    }
+
+    public ManagedParticipant getManagedParticipant() {
+        return managedParticipant;
     }
 
     public Match getMatch() {
