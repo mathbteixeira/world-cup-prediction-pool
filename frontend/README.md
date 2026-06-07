@@ -55,7 +55,16 @@ The frontend creates pools against the seeded World Cup 2026 tournament id:
 6. Review visible predictions.
 7. Check the leaderboard.
 
-Admin result updates are shown only when `/api/v1/auth/me` returns role `ADMIN`. Local self-registration creates normal `USER` accounts, so admin behavior requires an admin account in the backend database or test setup.
+Admin result updates are shown only when `/api/v1/auth/me` returns role `ADMIN`. Local self-registration creates normal `USER` accounts. With the backend running under the default `local` profile, sign in as the seeded demo admin to test admin screens:
+
+```text
+Email: admin@example.com
+Password: admin12345
+```
+
+Use `APP_DEMO_ADMIN_ENABLED=false` to disable that local/dev seed.
+
+Screenshot capture instructions are in `../docs/screenshots/README.md`.
 
 Knockout matches can now return unresolved participants with `homeTeam`/`awayTeam` as `null` and placeholder labels such as `1A` or `2B`. The frontend displays those placeholders, keeps prediction and result controls closed until the backend marks the match resolved, and exposes ADMIN participant resolution through `PUT /api/v1/admin/matches/{matchId}/participants`.
 

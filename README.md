@@ -635,6 +635,17 @@ npm run dev
 
 The app starts at `http://localhost:5173` and lets you create either a tournament pool or a single-match pool. For an existing single match, choose **Single-match pool**, then **Existing match**, select a tournament, and then select a match. For a custom friendly, choose **Custom match** and enter the teams, kickoff time, and optional competition label.
 
+Local and dev profiles seed a demo admin account for manual testing when `app.demo.admin.enabled=true`:
+
+```text
+Email: admin@example.com
+Password: admin12345
+```
+
+Override or disable the seed with `APP_DEMO_ADMIN_EMAIL`, `APP_DEMO_ADMIN_USERNAME`, `APP_DEMO_ADMIN_PASSWORD`, and `APP_DEMO_ADMIN_ENABLED=false`. The seed component is profile-gated to `local`/`dev` and does not run under production profiles.
+
+Screenshot capture instructions live in [docs/screenshots/README.md](docs/screenshots/README.md). The screenshot files are intentionally absent until captured from the real running app.
+
 ---
 
 ## Tradeoffs and future improvements
