@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
-import { ArrowLeft, ArrowUpDown, CheckCircle2, Clipboard, Filter, RefreshCw, Shield, Trash2, UserPlus } from "lucide-react";
-import { api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
+import { ArrowLeft, ArrowUpDown, CheckCircle2, Clipboard, Filter, RefreshCw, Shield, Trash2, TriangleAlert, UserPlus } from "lucide-react";
+import { ApiError, api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
 import type { ManagedParticipant, MatchSummary, PoolPrediction, PredictionResponse, RecalculationResponse, TeamSummary } from "../api/types";
 import { useAuth } from "../auth/AuthProvider";
 import { Badge } from "../components/ui/badge";
@@ -29,6 +29,7 @@ type MatchFiltersState = {
   predictableOnly: boolean;
   sortDirection: MatchSortDirection;
 };
+type FeedbackMessage = { type: "success" | "error"; message: string } | null;
 
 const resultSchema = z.object({
   matchId: z.string().min(1, "Choose a match"),
@@ -68,7 +69,7 @@ export function PoolDetailPage() {
   });
   const [drafts, setDrafts] = useState<ScoreDraft>({});
   const [managedDrafts, setManagedDrafts] = useState<ManagedScoreDraft>({});
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackMessage>(null);
   const [recalculation, setRecalculation] = useState<RecalculationResponse | null>(null);
 
   const poolQuery = useQuery({ queryKey: ["pool", poolId], queryFn: () => api.getPool(poolId), enabled: Boolean(poolId) });
@@ -114,13 +115,13 @@ export function PoolDetailPage() {
     mutationFn: ({ matchId, homeScore, awayScore }: { matchId: string; homeScore: number; awayScore: number }) =>
       api.submitPrediction(poolId, matchId, { homeScore, awayScore }),
     onSuccess: async () => {
-      setSuccessMessage(t("predictionSaved"));
+      setFeedback({ type: "success", message: t("predictionSaved") });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["predictions", poolId] }),
         queryClient.invalidateQueries({ queryKey: ["leaderboard", poolId] }),
       ]);
     },
-    onError: (error) => setSuccessMessage(error instanceof Error ? error.message : "Prediction failed"),
+    onError: (error) => setFeedback({ type: "error", message: predictionErrorMessage(error, t) }),
   });
 
   const resultForm = useForm<ResultForm>({
@@ -194,13 +195,13 @@ export function PoolDetailPage() {
     mutationFn: ({ participantId, homeScore, awayScore }: { participantId: string; homeScore: number; awayScore: number }) =>
       api.submitManagedParticipantPrediction(poolId, participantId, { homeScore, awayScore }),
     onSuccess: async () => {
-      setSuccessMessage(t("predictionSaved"));
+      setFeedback({ type: "success", message: t("predictionSaved") });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["predictions", poolId] }),
         queryClient.invalidateQueries({ queryKey: ["leaderboard", poolId] }),
       ]);
     },
-    onError: (error) => setSuccessMessage(error instanceof Error ? error.message : "Prediction failed"),
+    onError: (error) => setFeedback({ type: "error", message: predictionErrorMessage(error, t) }),
   });
 
   const allMatches = useMemo(() => {
@@ -232,11 +233,15 @@ export function PoolDetailPage() {
   }
 
   function savePrediction(match: MatchSummary) {
+    if (!match.predictionOpen) {
+      setFeedback({ type: "error", message: t("predictionsClosed") });
+      return;
+    }
     const draft = draftFor(match);
     const homeScore = Number(draft.homeScore);
     const awayScore = Number(draft.awayScore);
     if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
-      setSuccessMessage(t("invalidScores"));
+      setFeedback({ type: "error", message: t("invalidScores") });
       return;
     }
     submitPrediction.mutate({ matchId: match.matchId, homeScore, awayScore });
@@ -306,15 +311,11 @@ export function PoolDetailPage() {
           {canManageParticipants ? <TabsTrigger value="managed">{t("managedParticipants")}</TabsTrigger> : null}
           {isAdmin ? <TabsTrigger value="admin">{t("tournamentAdmin")}</TabsTrigger> : null}
         </TabsList>
+        {feedback ? <FeedbackAlert feedback={feedback} /> : null}
 
         <TabsContent value="matches">
           <div className="space-y-4">
             <MatchFilters filters={filters} groups={groups} teams={teams} onChange={setFilters} />
-            {successMessage ? (
-              <Alert>
-                <AlertDescription>{successMessage}</AlertDescription>
-              </Alert>
-            ) : null}
             <Card>
               <CardHeader>
                 <CardTitle>{t("matchesAndPredictions")}</CardTitle>
@@ -393,7 +394,7 @@ export function PoolDetailPage() {
                                 disabled={!match.predictionOpen}
                                 onChange={(event) => updateDraft(match.matchId, "awayScore", event.target.value)}
                               />
-                              <Button size="sm" disabled={!match.predictionOpen || submitPrediction.isPending} onClick={() => savePrediction(match)}>
+                              <Button size="sm" disabled={submitPrediction.isPending} onClick={() => savePrediction(match)}>
                                 {t("save")}
                               </Button>
                             </div>
@@ -462,6 +463,7 @@ export function PoolDetailPage() {
               submitMutation={submitManagedPrediction}
               drafts={managedDrafts}
               setDrafts={setManagedDrafts}
+              setFeedback={setFeedback}
             />
           </TabsContent>
         ) : null}
@@ -624,6 +626,7 @@ function ManagedParticipantsCard({
   submitMutation,
   drafts,
   setDrafts,
+  setFeedback,
 }: {
   participants: ManagedParticipant[];
   match: MatchSummary | undefined;
@@ -634,6 +637,7 @@ function ManagedParticipantsCard({
   submitMutation: UseMutationResult<PredictionResponse, Error, { participantId: string; homeScore: number; awayScore: number }>;
   drafts: ManagedScoreDraft;
   setDrafts: Dispatch<SetStateAction<ManagedScoreDraft>>;
+  setFeedback: Dispatch<SetStateAction<FeedbackMessage>>;
 }) {
   const { t } = useLanguage();
 
@@ -658,10 +662,17 @@ function ManagedParticipantsCard({
   }
 
   function savePrediction(participantId: string) {
+    if (!match?.predictionOpen) {
+      setFeedback({ type: "error", message: t("predictionsClosed") });
+      return;
+    }
     const draft = draftFor(participantId);
     const homeScore = Number(draft.homeScore);
     const awayScore = Number(draft.awayScore);
-    if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) return;
+    if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
+      setFeedback({ type: "error", message: t("invalidScores") });
+      return;
+    }
     submitMutation.mutate({ participantId, homeScore, awayScore });
   }
 
@@ -727,7 +738,7 @@ function ManagedParticipantsCard({
                         />
                         <Button
                           size="sm"
-                          disabled={!match?.predictionOpen || submitMutation.isPending}
+                          disabled={!match || submitMutation.isPending}
                           onClick={() => savePrediction(participant.participantId)}
                         >
                           {t("save")}
@@ -924,6 +935,29 @@ function AdminResultCard({
 
 function hasResolvedParticipants(match: MatchSummary) {
   return Boolean(match.homeTeam && match.awayTeam);
+}
+
+function FeedbackAlert({ feedback }: { feedback: Exclude<FeedbackMessage, null> }) {
+  const isError = feedback.type === "error";
+  return (
+    <Alert className={isError ? "mt-4 border-destructive/40 bg-destructive/5 text-destructive" : "mt-4"}>
+      <div className="flex items-start gap-3">
+        {isError ? (
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        ) : (
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+        )}
+        <AlertDescription className={isError ? "text-destructive/90" : undefined}>{feedback.message}</AlertDescription>
+      </div>
+    </Alert>
+  );
+}
+
+function predictionErrorMessage(error: unknown, t: (key: "predictionFailed" | "predictionsClosed") => string) {
+  if (error instanceof ApiError && error.status === 409 && error.message === "Predictions are closed for this match") {
+    return t("predictionsClosed");
+  }
+  return error instanceof Error && error.message ? error.message : t("predictionFailed");
 }
 
 function participantName(match: MatchSummary, side: "home" | "away") {

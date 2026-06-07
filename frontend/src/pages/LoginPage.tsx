@@ -2,11 +2,12 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { LogIn } from "lucide-react";
+import { LogIn, TriangleAlert } from "lucide-react";
 import { AuthShell } from "./AuthShell";
+import { ApiError } from "../api/client";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Alert, AlertDescription } from "../components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { FormField } from "../components/FormField";
 import { useAuth } from "../auth/AuthProvider";
 import { useLanguage } from "../i18n/LanguageProvider";
@@ -31,7 +32,7 @@ export function LoginPage() {
     try {
       await login(values.email, values.password);
     } catch (error) {
-      form.setError("root", { message: error instanceof Error ? error.message : "Login failed" });
+      form.setError("root", { message: loginErrorMessage(error, t) });
     }
   }
 
@@ -39,8 +40,14 @@ export function LoginPage() {
     <AuthShell title={t("signIn")} subtitle={t("signInSubtitle")}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         {form.formState.errors.root ? (
-          <Alert className="border-destructive/30">
-            <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
+          <Alert className="border-destructive/40 bg-destructive/5 text-destructive">
+            <div className="flex items-start gap-3">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <div>
+                <AlertTitle>{t("loginErrorTitle")}</AlertTitle>
+                <AlertDescription className="text-destructive/90">{form.formState.errors.root.message}</AlertDescription>
+              </div>
+            </div>
           </Alert>
         ) : null}
         <FormField label={t("email")} error={form.formState.errors.email}>
@@ -62,4 +69,11 @@ export function LoginPage() {
       </form>
     </AuthShell>
   );
+}
+
+function loginErrorMessage(error: unknown, t: (key: "loginFailed" | "loginInvalidCredentials") => string) {
+  if (error instanceof ApiError && error.status === 401) {
+    return t("loginInvalidCredentials");
+  }
+  return error instanceof Error && error.message ? error.message : t("loginFailed");
 }
