@@ -107,6 +107,7 @@ class PredictionControllerTest {
                         predictionId,
                         poolId,
                         new PredictionUserResponse(userId, "alice"),
+                        null,
                         true,
                         new MatchSummaryResponse(
                                 matchId,

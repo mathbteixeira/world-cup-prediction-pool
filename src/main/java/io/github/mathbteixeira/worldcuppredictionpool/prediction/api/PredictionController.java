@@ -76,4 +76,35 @@ public class PredictionController {
                 prediction.getSubmittedAt()
         );
     }
+
+    @PutMapping("/managed-participants/{participantId}/prediction")
+    @Operation(summary = "Submit or update managed participant prediction", description = "Creates or replaces an owner-managed participant score prediction for a single-match pool before kickoff.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Managed participant prediction submitted or updated"),
+            @ApiResponse(responseCode = "400", description = "Invalid prediction request or pool scope"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Current user is not the pool owner"),
+            @ApiResponse(responseCode = "404", description = "Pool or managed participant not found")
+    })
+    public PredictionResponse submitOrUpdateManagedParticipantPrediction(
+            @Parameter(description = "Prediction pool id") @PathVariable UUID poolId,
+            @Parameter(description = "Managed participant id") @PathVariable UUID participantId,
+            @Valid @RequestBody SubmitPredictionRequest request,
+            Authentication authentication) {
+        Prediction prediction = predictionSubmissionService.submitForManagedParticipant(
+                poolId,
+                participantId,
+                authentication.getName(),
+                request.homeScore(),
+                request.awayScore()
+        );
+        return new PredictionResponse(
+                prediction.getId(),
+                prediction.getPool().getId(),
+                prediction.getMatch().getId(),
+                prediction.getPredictedHomeScore(),
+                prediction.getPredictedAwayScore(),
+                prediction.getSubmittedAt()
+        );
+    }
 }

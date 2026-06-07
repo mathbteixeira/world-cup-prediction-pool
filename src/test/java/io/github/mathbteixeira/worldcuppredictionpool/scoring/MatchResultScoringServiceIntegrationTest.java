@@ -1,8 +1,10 @@
 package io.github.mathbteixeira.worldcuppredictionpool.scoring;
 
+import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.ManagedParticipant;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.ManagedParticipantRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
@@ -79,6 +81,9 @@ class MatchResultScoringServiceIntegrationTest {
     private PoolMembershipRepository poolMembershipRepository;
 
     @Autowired
+    private ManagedParticipantRepository managedParticipantRepository;
+
+    @Autowired
     private PredictionRepository predictionRepository;
 
     @Autowired
@@ -103,6 +108,7 @@ class MatchResultScoringServiceIntegrationTest {
         predictionCurrentScoreRepository.deleteAllInBatch();
         matchResultRepository.deleteAllInBatch();
         predictionRepository.deleteAllInBatch();
+        managedParticipantRepository.deleteAllInBatch();
         poolMembershipRepository.deleteAllInBatch();
         predictionPoolRepository.deleteAllInBatch();
         matchRepository.deleteAllInBatch();
@@ -129,8 +135,8 @@ class MatchResultScoringServiceIntegrationTest {
         poolMembershipRepository.save(new PoolMembership(pool, owner, PoolRole.OWNER));
         poolMembershipRepository.save(new PoolMembership(pool, guest, PoolRole.MEMBER));
 
-        predictionRepository.save(new Prediction(pool, match, owner, 1, 1, Instant.parse("2026-06-10T10:00:00Z")));
-        predictionRepository.save(new Prediction(pool, match, guest, 1, 0, Instant.parse("2026-06-10T10:05:00Z")));
+        predictionRepository.save(new Prediction(pool, match, owner, 2, 1, Instant.parse("2026-06-10T10:00:00Z")));
+        predictionRepository.save(new Prediction(pool, match, guest, 0, 0, Instant.parse("2026-06-10T10:05:00Z")));
 
         this.matchId = match.getId();
         this.poolId = pool.getId();
@@ -150,6 +156,7 @@ class MatchResultScoringServiceIntegrationTest {
                 now,
                 prediction.getPool().getId(),
                 prediction.getUser().getId(),
+                null,
                 prediction.getMatch().getId(),
                 prediction.getId(),
                 5,
@@ -168,6 +175,7 @@ class MatchResultScoringServiceIntegrationTest {
                 now,
                 prediction.getPool().getId(),
                 prediction.getUser().getId(),
+                null,
                 prediction.getMatch().getId(),
                 prediction.getId(),
                 3,
@@ -197,7 +205,7 @@ class MatchResultScoringServiceIntegrationTest {
 
         var firstLeaderboard = leaderboardEntryRepository.findAllByPoolIdOrderByRankPositionAsc(poolId);
         assertThat(firstLeaderboard).hasSize(2);
-        assertThat(firstLeaderboard.get(0).getTotalPoints()).isEqualTo(5);
+        assertThat(firstLeaderboard.get(0).getTotalPoints()).isEqualTo(7);
         assertThat(firstLeaderboard.get(1).getTotalPoints()).isEqualTo(0);
 
         RecalculationResult replay = matchResultScoringService.upsertResultAndRecalculate(
@@ -245,7 +253,34 @@ class MatchResultScoringServiceIntegrationTest {
         assertThat(result.affectedPools()).isEqualTo(2);
         var leaderboard = leaderboardEntryRepository.findAllByPoolIdOrderByRankPositionAsc(singleMatchPool.getId());
         assertThat(leaderboard).hasSize(2);
-        assertThat(leaderboard.get(0).getTotalPoints()).isEqualTo(5);
+        assertThat(leaderboard.get(0).getTotalPoints()).isEqualTo(7);
         assertThat(leaderboard.get(1).getTotalPoints()).isEqualTo(0);
+    }
+
+    @Test
+    @Transactional
+    void shouldIncludeManagedParticipantsInLeaderboardAfterRecalculation() {
+        Match match = matchRepository.findById(matchId).orElseThrow();
+        UserAccount owner = userAccountRepository.findByEmailIgnoreCase("owner@example.com").orElseThrow();
+
+        PredictionPool singleMatchPool = predictionPoolRepository.save(new PredictionPool(
+                "Family Friendly",
+                "One match",
+                "INVITE03",
+                owner,
+                match
+        ));
+        poolMembershipRepository.save(new PoolMembership(singleMatchPool, owner, PoolRole.OWNER));
+        ManagedParticipant grandma = managedParticipantRepository.save(new ManagedParticipant(singleMatchPool, "Grandma"));
+        predictionRepository.save(new Prediction(singleMatchPool, match, grandma, 2, 1, Instant.parse("2026-06-10T10:20:00Z")));
+
+        matchResultScoringService.upsertResultAndRecalculate(
+                new UpsertMatchResultCommand(matchId, 2, 1, null, null, true)
+        );
+
+        var leaderboard = leaderboardEntryRepository.findAllByPoolIdOrderByRankPositionAsc(singleMatchPool.getId());
+        assertThat(leaderboard).hasSize(2);
+        assertThat(leaderboard.get(0).getManagedParticipant().getDisplayName()).isEqualTo("Grandma");
+        assertThat(leaderboard.get(0).getTotalPoints()).isEqualTo(7);
     }
 }

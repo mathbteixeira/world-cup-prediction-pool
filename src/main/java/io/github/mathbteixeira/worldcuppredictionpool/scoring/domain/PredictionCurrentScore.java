@@ -1,6 +1,7 @@
 package io.github.mathbteixeira.worldcuppredictionpool.scoring.domain;
 
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.ManagedParticipant;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
@@ -30,9 +31,13 @@ public class PredictionCurrentScore extends BaseEntity {
     @JoinColumn(name = "pool_id", nullable = false)
     private PredictionPool pool;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private UserAccount user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "managed_participant_id")
+    private ManagedParticipant managedParticipant;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "match_id", nullable = false)
@@ -71,6 +76,24 @@ public class PredictionCurrentScore extends BaseEntity {
         this.updatedAtScore = updatedAtScore;
     }
 
+    public PredictionCurrentScore(Prediction prediction,
+                                  PredictionPool pool,
+                                  ManagedParticipant managedParticipant,
+                                  Match match,
+                                  int pointsAwarded,
+                                  int ruleVersion,
+                                  String resultChecksum,
+                                  Instant updatedAtScore) {
+        this.prediction = prediction;
+        this.pool = pool;
+        this.managedParticipant = managedParticipant;
+        this.match = match;
+        this.pointsAwarded = pointsAwarded;
+        this.ruleVersion = ruleVersion;
+        this.resultChecksum = resultChecksum;
+        this.updatedAtScore = updatedAtScore;
+    }
+
     public void updateScore(int pointsAwarded, int ruleVersion, String resultChecksum, Instant updatedAtScore) {
         this.pointsAwarded = pointsAwarded;
         this.ruleVersion = ruleVersion;
@@ -88,6 +111,10 @@ public class PredictionCurrentScore extends BaseEntity {
 
     public UserAccount getUser() {
         return user;
+    }
+
+    public ManagedParticipant getManagedParticipant() {
+        return managedParticipant;
     }
 
     public int getPointsAwarded() {

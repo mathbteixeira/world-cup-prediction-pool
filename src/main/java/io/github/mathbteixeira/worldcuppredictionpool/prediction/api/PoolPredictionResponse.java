@@ -9,6 +9,7 @@ public record PoolPredictionResponse(
         UUID predictionId,
         UUID poolId,
         PredictionUserResponse user,
+        PredictionManagedParticipantResponse managedParticipant,
         boolean mine,
         MatchSummaryResponse match,
         int homeScore,

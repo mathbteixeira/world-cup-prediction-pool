@@ -18,8 +18,8 @@ class DefaultPredictionScoringEngineTest {
     void shouldAwardExactScorePoints() {
         ScoreBreakdown breakdown = engine.score(new PredictionScoreInput(2, 1), new MatchScoreInput(2, 1), rule);
 
-        assertThat(breakdown.totalPoints()).isEqualTo(5);
-        assertThat(breakdown.exactScorePointsAwarded()).isEqualTo(5);
+        assertThat(breakdown.totalPoints()).isEqualTo(7);
+        assertThat(breakdown.exactScorePointsAwarded()).isEqualTo(7);
         assertThat(breakdown.outcomePointsAwarded()).isZero();
         assertThat(breakdown.goalDifferenceBonusPointsAwarded()).isZero();
     }

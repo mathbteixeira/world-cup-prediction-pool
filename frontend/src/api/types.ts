@@ -104,7 +104,11 @@ export type PoolPrediction = {
   user: {
     userId: string;
     username: string;
-  };
+  } | null;
+  managedParticipant: {
+    participantId: string;
+    name: string;
+  } | null;
   mine: boolean;
   match: MatchSummary;
   homeScore: number;
@@ -114,11 +118,18 @@ export type PoolPrediction = {
 
 export type LeaderboardEntry = {
   poolId: string;
-  userId: string;
+  userId: string | null;
+  managedParticipantId: string | null;
   username: string;
   totalPoints: number;
   rankPosition: number;
   recalculatedAt: string;
+};
+
+export type ManagedParticipant = {
+  participantId: string;
+  poolId: string;
+  name: string;
 };
 
 export type RecalculationResponse = {

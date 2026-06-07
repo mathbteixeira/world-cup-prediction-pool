@@ -37,6 +37,7 @@ This is intentionally **not** a toy CRUD app. The core challenge is domain corre
 - **Pool aggregate** (`PredictionPool`, `PoolMembership`)
   - membership and ownership boundaries
   - pool scope: `TOURNAMENT` or `SINGLE_MATCH`
+  - owner-managed participants for small single-match family/friends pools
 - **Prediction aggregate** (`Prediction`)
   - one prediction per user/pool/match
 - **Scoring aggregate**
@@ -47,6 +48,8 @@ This is intentionally **not** a toy CRUD app. The core challenge is domain corre
 ### Invariants
 
 - one prediction per `(pool, match, user)`
+- one prediction per `(pool, match, managed participant)` for owner-managed single-match pools
+- managed participants have a required display name that is unique within their pool and do not have email, password, roles, or authentication
 - prediction submission/update allowed only **before kickoff**
 - score events are immutable and append-only per `(prediction, resultChecksum)`
 - replaying the same result is idempotent (no duplicated points)
@@ -91,7 +94,8 @@ class Prediction {
   UUID id;
   PredictionPool pool;
   Match match;
-  UserAccount user;
+  UserAccount user; // nullable when submitted for a managed participant
+  ManagedParticipant managedParticipant; // nullable for registered-user predictions
   int predictedHomeScore;
   int predictedAwayScore;
   Instant submittedAt;
@@ -107,7 +111,8 @@ class ScoreEvent {
   Prediction prediction;
   Match match;
   PredictionPool pool;
-  UserAccount user;
+  UserAccount user; // nullable for managed participant predictions
+  ManagedParticipant managedParticipant; // nullable for registered-user predictions
   int pointsAwarded;
   int exactScorePointsAwarded;
   int outcomePointsAwarded;
@@ -123,7 +128,8 @@ class ScoreEvent {
 class LeaderboardEntry {
   UUID id;
   PredictionPool pool;
-  UserAccount user;
+  UserAccount user; // nullable for managed participant rows
+  ManagedParticipant managedParticipant; // nullable for registered-user rows
   int totalPoints;
   int rankPosition;
   Instant recalculatedAt;
@@ -140,6 +146,8 @@ class PredictionPool {
 }
 ```
 
+Owner-managed participants are currently supported only for `SINGLE_MATCH` pools. Tournament and multi-match managed-participant support is intentionally out of scope.
+
 ---
 
 ## Scoring engine
@@ -153,7 +161,7 @@ Scoring logic is isolated from controllers/repositories in `scoring.engine`:
 
 ### Current rules (v1)
 
-- exact score: **5**
+- exact score: **7**
 - correct winner/draw: **3**
 - correct goal difference bonus: **2** (when outcome is correct and exact score is not)
 - wrong prediction: **0**
@@ -204,9 +212,13 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `POST /api/v1/pools`
 - `GET /api/v1/pools`
 - `POST /api/v1/pools/{poolId}/join`
+- `POST /api/v1/pools/{poolId}/managed-participants`
+- `GET /api/v1/pools/{poolId}/managed-participants`
+- `DELETE /api/v1/pools/{poolId}/managed-participants/{participantId}`
 - `GET /api/v1/tournaments`
 - `GET /api/v1/tournaments/{tournamentId}/matches`
 - `PUT /api/v1/pools/{poolId}/matches/{matchId}/prediction`
+- `PUT /api/v1/pools/{poolId}/managed-participants/{participantId}/prediction`
 - `GET /api/v1/pools/{poolId}/predictions`
 - `PUT /api/v1/admin/matches/{matchId}/participants`
 - `PUT /api/v1/admin/matches/{matchId}/result`

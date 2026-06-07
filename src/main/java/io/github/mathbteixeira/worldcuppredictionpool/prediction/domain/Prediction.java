@@ -1,6 +1,7 @@
 package io.github.mathbteixeira.worldcuppredictionpool.prediction.domain;
 
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.ManagedParticipant;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
@@ -25,9 +26,13 @@ public class Prediction extends BaseEntity {
     @JoinColumn(name = "match_id", nullable = false)
     private Match match;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private UserAccount user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "managed_participant_id")
+    private ManagedParticipant managedParticipant;
 
     @Column(nullable = false)
     private int predictedHomeScore;
@@ -55,6 +60,20 @@ public class Prediction extends BaseEntity {
         this.submittedAt = submittedAt;
     }
 
+    public Prediction(PredictionPool pool,
+                      Match match,
+                      ManagedParticipant managedParticipant,
+                      int predictedHomeScore,
+                      int predictedAwayScore,
+                      Instant submittedAt) {
+        this.pool = pool;
+        this.match = match;
+        this.managedParticipant = managedParticipant;
+        this.predictedHomeScore = predictedHomeScore;
+        this.predictedAwayScore = predictedAwayScore;
+        this.submittedAt = submittedAt;
+    }
+
     public void resubmit(int predictedHomeScore, int predictedAwayScore, Instant submittedAt) {
         this.predictedHomeScore = predictedHomeScore;
         this.predictedAwayScore = predictedAwayScore;
@@ -71,6 +90,14 @@ public class Prediction extends BaseEntity {
 
     public UserAccount getUser() {
         return user;
+    }
+
+    public ManagedParticipant getManagedParticipant() {
+        return managedParticipant;
+    }
+
+    public boolean isManagedParticipantPrediction() {
+        return managedParticipant != null;
     }
 
     public int getPredictedHomeScore() {

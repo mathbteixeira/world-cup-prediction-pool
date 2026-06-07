@@ -2,6 +2,7 @@ package io.github.mathbteixeira.worldcuppredictionpool.pool;
 
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.api.PoolController;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.application.ManagedParticipantService;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.application.PoolLeaderboardService;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.application.PoolService;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership;
@@ -51,6 +52,9 @@ class PoolLeaderboardControllerTest {
 
     @MockBean
     private PoolService poolService;
+
+    @MockBean
+    private ManagedParticipantService managedParticipantService;
 
     @MockBean
     private LeaderboardEntryRepository leaderboardEntryRepository;

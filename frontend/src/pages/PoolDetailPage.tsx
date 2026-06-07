@@ -1,12 +1,12 @@
-import { useMemo, useState, type SelectHTMLAttributes } from "react";
+import { useMemo, useState, type Dispatch, type SelectHTMLAttributes, type SetStateAction } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
-import { ArrowLeft, ArrowUpDown, CheckCircle2, Clipboard, Filter, RefreshCw, Shield } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, CheckCircle2, Clipboard, Filter, RefreshCw, Shield, Trash2, UserPlus } from "lucide-react";
 import { api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
-import type { MatchSummary, PoolPrediction, RecalculationResponse, TeamSummary } from "../api/types";
+import type { ManagedParticipant, MatchSummary, PoolPrediction, PredictionResponse, RecalculationResponse, TeamSummary } from "../api/types";
 import { useAuth } from "../auth/AuthProvider";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -21,6 +21,7 @@ import { flagForFifaCode } from "../lib/flags";
 import { formatDateTime } from "../lib/utils";
 
 type ScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
+type ManagedScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
 type MatchSortDirection = "asc" | "desc";
 type MatchFiltersState = {
   group: string;
@@ -48,6 +49,12 @@ const participantSchema = z.object({
 
 type ParticipantForm = z.infer<typeof participantSchema>;
 
+const managedParticipantSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(80),
+});
+
+type ManagedParticipantForm = z.infer<typeof managedParticipantSchema>;
+
 export function PoolDetailPage() {
   const { poolId = "" } = useParams();
   const { user } = useAuth();
@@ -60,6 +67,7 @@ export function PoolDetailPage() {
     sortDirection: "asc",
   });
   const [drafts, setDrafts] = useState<ScoreDraft>({});
+  const [managedDrafts, setManagedDrafts] = useState<ManagedScoreDraft>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [recalculation, setRecalculation] = useState<RecalculationResponse | null>(null);
 
@@ -81,11 +89,23 @@ export function PoolDetailPage() {
     queryFn: () => api.leaderboard(poolId),
     enabled: Boolean(poolId),
   });
+  const managedParticipantsQuery = useQuery({
+    queryKey: ["managed-participants", poolId],
+    queryFn: () => api.listManagedParticipants(poolId),
+    enabled: Boolean(poolId) && poolQuery.data?.poolScope === "SINGLE_MATCH" && poolQuery.data?.membershipRole === "OWNER",
+  });
 
   const myPredictions = useMemo(() => {
     const map = new Map<string, PoolPrediction>();
     for (const prediction of predictionsQuery.data ?? []) {
       if (prediction.mine) map.set(prediction.match.matchId, prediction);
+    }
+    return map;
+  }, [predictionsQuery.data]);
+  const managedPredictions = useMemo(() => {
+    const map = new Map<string, PoolPrediction>();
+    for (const prediction of predictionsQuery.data ?? []) {
+      if (prediction.managedParticipant) map.set(prediction.managedParticipant.participantId, prediction);
     }
     return map;
   }, [predictionsQuery.data]);
@@ -110,6 +130,10 @@ export function PoolDetailPage() {
   const participantForm = useForm<ParticipantForm>({
     resolver: zodResolver(participantSchema),
     defaultValues: { matchId: "", homeTeamId: "", awayTeamId: "" },
+  });
+  const managedParticipantForm = useForm<ManagedParticipantForm>({
+    resolver: zodResolver(managedParticipantSchema),
+    defaultValues: { name: "" },
   });
 
   const upsertResult = useMutation({
@@ -146,6 +170,37 @@ export function PoolDetailPage() {
     },
     onError: (error) =>
       participantForm.setError("root", { message: error instanceof Error ? error.message : "Participant resolution failed" }),
+  });
+  const createManagedParticipant = useMutation({
+    mutationFn: (values: ManagedParticipantForm) => api.createManagedParticipant(poolId, { name: values.name.trim() }),
+    onSuccess: async () => {
+      managedParticipantForm.reset();
+      await queryClient.invalidateQueries({ queryKey: ["managed-participants", poolId] });
+    },
+    onError: (error) =>
+      managedParticipantForm.setError("root", { message: error instanceof Error ? error.message : "Participant creation failed" }),
+  });
+  const removeManagedParticipant = useMutation({
+    mutationFn: (participantId: string) => api.removeManagedParticipant(poolId, participantId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["managed-participants", poolId] }),
+        queryClient.invalidateQueries({ queryKey: ["predictions", poolId] }),
+        queryClient.invalidateQueries({ queryKey: ["leaderboard", poolId] }),
+      ]);
+    },
+  });
+  const submitManagedPrediction = useMutation({
+    mutationFn: ({ participantId, homeScore, awayScore }: { participantId: string; homeScore: number; awayScore: number }) =>
+      api.submitManagedParticipantPrediction(poolId, participantId, { homeScore, awayScore }),
+    onSuccess: async () => {
+      setSuccessMessage(t("predictionSaved"));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["predictions", poolId] }),
+        queryClient.invalidateQueries({ queryKey: ["leaderboard", poolId] }),
+      ]);
+    },
+    onError: (error) => setSuccessMessage(error instanceof Error ? error.message : "Prediction failed"),
   });
 
   const allMatches = useMemo(() => {
@@ -204,6 +259,7 @@ export function PoolDetailPage() {
   const isAdmin = user?.role === "ADMIN";
   const tournamentName = pool.tournamentId === WORLD_CUP_2026_TOURNAMENT_ID ? t("worldCup2026") : pool.tournamentId.slice(0, 8);
   const scopeLabel = pool.poolScope === "SINGLE_MATCH" ? t("singleMatchPool") : t("tournamentPool");
+  const canManageParticipants = pool.poolScope === "SINGLE_MATCH" && pool.membershipRole === "OWNER";
 
   return (
     <div className="space-y-6">
@@ -247,6 +303,7 @@ export function PoolDetailPage() {
           <TabsTrigger value="matches">{t("matches")}</TabsTrigger>
           <TabsTrigger value="predictions">{t("predictions")}</TabsTrigger>
           <TabsTrigger value="leaderboard">{t("leaderboard")}</TabsTrigger>
+          {canManageParticipants ? <TabsTrigger value="managed">{t("managedParticipants")}</TabsTrigger> : null}
           {isAdmin ? <TabsTrigger value="admin">{t("tournamentAdmin")}</TabsTrigger> : null}
         </TabsList>
 
@@ -379,7 +436,7 @@ export function PoolDetailPage() {
                   </TableHeader>
                   <TableBody>
                     {leaderboardQuery.data?.map((entry) => (
-                      <TableRow key={entry.userId}>
+                      <TableRow key={entry.userId ?? entry.managedParticipantId ?? entry.username}>
                         <TableCell className="font-semibold">#{entry.rankPosition}</TableCell>
                         <TableCell>{entry.username}</TableCell>
                         <TableCell>{entry.totalPoints}</TableCell>
@@ -392,6 +449,22 @@ export function PoolDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {canManageParticipants ? (
+          <TabsContent value="managed">
+            <ManagedParticipantsCard
+              participants={managedParticipantsQuery.data ?? []}
+              match={allMatches[0]}
+              predictions={managedPredictions}
+              form={managedParticipantForm}
+              createMutation={createManagedParticipant}
+              removeMutation={removeManagedParticipant}
+              submitMutation={submitManagedPrediction}
+              drafts={managedDrafts}
+              setDrafts={setManagedDrafts}
+            />
+          </TabsContent>
+        ) : null}
 
         {isAdmin ? (
           <TabsContent value="admin">
@@ -518,7 +591,7 @@ function PredictionsTable({ predictions }: { predictions: PoolPrediction[] }) {
                 <TableRow key={prediction.predictionId}>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {prediction.user.username}
+                      {prediction.managedParticipant?.name ?? prediction.user?.username}
                       {prediction.mine ? <Badge variant="success">{t("mine")}</Badge> : null}
                     </div>
                   </TableCell>
@@ -533,6 +606,149 @@ function PredictionsTable({ predictions }: { predictions: PoolPrediction[] }) {
                   <TableCell>{formatDateTime(prediction.submittedAt, language)}</TableCell>
                 </TableRow>
               ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ManagedParticipantsCard({
+  participants,
+  match,
+  predictions,
+  form,
+  createMutation,
+  removeMutation,
+  submitMutation,
+  drafts,
+  setDrafts,
+}: {
+  participants: ManagedParticipant[];
+  match: MatchSummary | undefined;
+  predictions: Map<string, PoolPrediction>;
+  form: UseFormReturn<ManagedParticipantForm>;
+  createMutation: UseMutationResult<ManagedParticipant, Error, ManagedParticipantForm>;
+  removeMutation: UseMutationResult<void, Error, string>;
+  submitMutation: UseMutationResult<PredictionResponse, Error, { participantId: string; homeScore: number; awayScore: number }>;
+  drafts: ManagedScoreDraft;
+  setDrafts: Dispatch<SetStateAction<ManagedScoreDraft>>;
+}) {
+  const { t } = useLanguage();
+
+  function draftFor(participantId: string) {
+    const existing = predictions.get(participantId);
+    const draft = drafts[participantId];
+    return {
+      homeScore: draft?.homeScore ?? String(existing?.homeScore ?? ""),
+      awayScore: draft?.awayScore ?? String(existing?.awayScore ?? ""),
+    };
+  }
+
+  function updateDraft(participantId: string, key: "homeScore" | "awayScore", value: string) {
+    setDrafts((current) => ({
+      ...current,
+      [participantId]: {
+        homeScore: current[participantId]?.homeScore ?? "",
+        awayScore: current[participantId]?.awayScore ?? "",
+        [key]: value,
+      },
+    }));
+  }
+
+  function savePrediction(participantId: string) {
+    const draft = draftFor(participantId);
+    const homeScore = Number(draft.homeScore);
+    const awayScore = Number(draft.awayScore);
+    if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) return;
+    submitMutation.mutate({ participantId, homeScore, awayScore });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("managedParticipants")}</CardTitle>
+        <CardDescription>{t("managedParticipantsDesc")}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form onSubmit={form.handleSubmit((values) => createMutation.mutate(values))} className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          {form.formState.errors.root ? (
+            <Alert className="border-destructive/30 sm:col-span-2">
+              <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
+            </Alert>
+          ) : null}
+          <FormField label={t("participantName")} error={form.formState.errors.name}>
+            <Input {...form.register("name")} />
+          </FormField>
+          <Button disabled={createMutation.isPending}>
+            <UserPlus className="h-4 w-4" />
+            {t("create")}
+          </Button>
+        </form>
+
+        {participants.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("noManagedParticipants")}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("participantName")}</TableHead>
+                <TableHead className="min-w-56">{t("prediction")}</TableHead>
+                <TableHead className="w-12"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {participants.map((participant) => {
+                const draft = draftFor(participant.participantId);
+                return (
+                  <TableRow key={participant.participantId}>
+                    <TableCell className="font-medium">{participant.name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          aria-label={`${participant.name} home score`}
+                          type="number"
+                          min={0}
+                          className="h-9 w-16"
+                          value={draft.homeScore}
+                          disabled={!match?.predictionOpen}
+                          onChange={(event) => updateDraft(participant.participantId, "homeScore", event.target.value)}
+                        />
+                        <span className="text-muted-foreground">-</span>
+                        <Input
+                          aria-label={`${participant.name} away score`}
+                          type="number"
+                          min={0}
+                          className="h-9 w-16"
+                          value={draft.awayScore}
+                          disabled={!match?.predictionOpen}
+                          onChange={(event) => updateDraft(participant.participantId, "awayScore", event.target.value)}
+                        />
+                        <Button
+                          size="sm"
+                          disabled={!match?.predictionOpen || submitMutation.isPending}
+                          onClick={() => savePrediction(participant.participantId)}
+                        >
+                          {t("save")}
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={removeMutation.isPending}
+                        onClick={() => removeMutation.mutate(participant.participantId)}
+                        title={t("remove")}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

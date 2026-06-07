@@ -7,8 +7,13 @@ import io.github.mathbteixeira.worldcuppredictionpool.pool.application.PoolServi
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.ManagedParticipantRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.persistence.PredictionRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.LeaderboardEntryRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.PredictionCurrentScoreRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.ScoreEventRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.MatchStatus;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
@@ -49,6 +54,21 @@ class PoolServiceTest {
 
     @Mock
     private PoolMembershipRepository poolMembershipRepository;
+
+    @Mock
+    private ManagedParticipantRepository managedParticipantRepository;
+
+    @Mock
+    private PredictionRepository predictionRepository;
+
+    @Mock
+    private ScoreEventRepository scoreEventRepository;
+
+    @Mock
+    private PredictionCurrentScoreRepository predictionCurrentScoreRepository;
+
+    @Mock
+    private LeaderboardEntryRepository leaderboardEntryRepository;
 
     @Mock
     private UserAccountRepository userAccountRepository;
@@ -276,6 +296,70 @@ class PoolServiceTest {
 
         assertThat(response.id()).isEqualTo(poolId);
         assertThat(response.membershipRole()).isEqualTo("MEMBER");
+    }
+
+    @Test
+    void ownerCanDeletePool() {
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
+        UUID ownerId = UUID.randomUUID();
+        UUID poolId = UUID.randomUUID();
+        setId(owner, ownerId);
+        PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
+        setId(pool, poolId);
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(owner));
+
+        poolService.deletePool(poolId, "owner@example.com");
+
+        verify(leaderboardEntryRepository).deleteByPoolId(poolId);
+        verify(scoreEventRepository).deleteByPoolId(poolId);
+        verify(predictionCurrentScoreRepository).deleteByPoolId(poolId);
+        verify(predictionRepository).deleteByPoolId(poolId);
+        verify(managedParticipantRepository).deleteByPoolId(poolId);
+        verify(poolMembershipRepository).deleteByPoolId(poolId);
+        verify(predictionPoolRepository).delete(pool);
+    }
+
+    @Test
+    void adminCanDeletePool() {
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
+        UserAccount admin = new UserAccount("admin", "admin@example.com", "encoded", UserRole.ADMIN);
+        UUID poolId = UUID.randomUUID();
+        setId(owner, UUID.randomUUID());
+        setId(admin, UUID.randomUUID());
+        PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
+        setId(pool, poolId);
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("admin@example.com")).thenReturn(Optional.of(admin));
+
+        poolService.deletePool(poolId, "admin@example.com");
+
+        verify(predictionPoolRepository).delete(pool);
+    }
+
+    @Test
+    void nonOwnerCannotDeletePool() {
+        Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
+        UserAccount owner = new UserAccount("owner", "owner@example.com", "encoded", UserRole.USER);
+        UserAccount member = new UserAccount("member", "member@example.com", "encoded", UserRole.USER);
+        UUID poolId = UUID.randomUUID();
+        setId(owner, UUID.randomUUID());
+        setId(member, UUID.randomUUID());
+        PredictionPool pool = new PredictionPool("Office Pool", "Qatar 2026", "ABCDEFGH", owner, tournament);
+        setId(pool, poolId);
+        when(predictionPoolRepository.findById(poolId)).thenReturn(Optional.of(pool));
+        when(userAccountRepository.findByEmailIgnoreCase("member@example.com")).thenReturn(Optional.of(member));
+
+        assertThatThrownBy(() -> poolService.deletePool(poolId, "member@example.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> {
+                    ResponseStatusException exception = (ResponseStatusException) error;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                });
+
+        verify(predictionPoolRepository, never()).delete(any(PredictionPool.class));
     }
 
     private static void setId(BaseEntity entity, UUID id) {

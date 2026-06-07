@@ -7,6 +7,6 @@ public record ScoringRuleDefinition(
         int goalDifferenceBonusPoints
 ) {
     public static ScoringRuleDefinition defaultV1() {
-        return new ScoringRuleDefinition(1, 5, 3, 2);
+        return new ScoringRuleDefinition(1, 7, 3, 2);
     }
 }
