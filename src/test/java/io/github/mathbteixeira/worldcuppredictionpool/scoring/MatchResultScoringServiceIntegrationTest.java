@@ -135,8 +135,8 @@ class MatchResultScoringServiceIntegrationTest {
         poolMembershipRepository.save(new PoolMembership(pool, owner, PoolRole.OWNER));
         poolMembershipRepository.save(new PoolMembership(pool, guest, PoolRole.MEMBER));
 
-        predictionRepository.save(new Prediction(pool, match, owner, 1, 1, Instant.parse("2026-06-10T10:00:00Z")));
-        predictionRepository.save(new Prediction(pool, match, guest, 1, 0, Instant.parse("2026-06-10T10:05:00Z")));
+        predictionRepository.save(new Prediction(pool, match, owner, 2, 1, Instant.parse("2026-06-10T10:00:00Z")));
+        predictionRepository.save(new Prediction(pool, match, guest, 0, 0, Instant.parse("2026-06-10T10:05:00Z")));
 
         this.matchId = match.getId();
         this.poolId = pool.getId();
