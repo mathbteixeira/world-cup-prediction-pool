@@ -55,14 +55,14 @@ The frontend creates pools against the seeded World Cup 2026 tournament id:
 6. Review visible predictions.
 7. Check the leaderboard.
 
-Admin result updates are shown only when `/api/v1/auth/me` returns role `ADMIN`. Local self-registration creates normal `USER` accounts. With the backend running under the default `local` profile, sign in as the seeded demo admin to test admin screens:
+Admin result updates are shown only when `/api/v1/auth/me` returns role `ADMIN`. Local self-registration creates normal `USER` accounts. With the backend running under the default `local` profile on a developer machine, sign in as the seeded demo admin to test admin screens:
 
 ```text
 Email: admin@example.com
 Password: admin12345
 ```
 
-Use `APP_DEMO_ADMIN_ENABLED=false` to disable that local/dev seed.
+Use `APP_DEMO_ADMIN_ENABLED=false` to disable the local seed. The `dev` profile is explicit opt-in with `APP_DEMO_ADMIN_ENABLED=true`; do not enable this seed in deployed or production environments.
 
 Screenshot capture instructions are in `../docs/screenshots/README.md`.
 

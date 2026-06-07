@@ -43,7 +43,7 @@ describe("DashboardPage", () => {
   it("creates a tournament pool", async () => {
     renderDashboardPage();
 
-    await userEvent.type(inputByName("name"), "Family Cup");
+    await userEvent.type(screen.getByLabelText("Nome do bolão"), "Family Cup");
     await userEvent.click(screen.getByRole("button", { name: "Criar" }));
 
     await waitFor(() => expect(apiMock.createPool).toHaveBeenCalled());
@@ -58,7 +58,7 @@ describe("DashboardPage", () => {
   it("joins a pool with an invite code", async () => {
     renderDashboardPage();
 
-    await userEvent.type(inputByName("inviteCode"), "abc123");
+    await userEvent.type(screen.getByLabelText("Código de convite"), "abc123");
     await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
 
     await waitFor(() => expect(apiMock.joinPool).toHaveBeenCalledWith("ABC123"));
@@ -79,10 +79,4 @@ function renderDashboardPage() {
       </LanguageProvider>
     </QueryClientProvider>,
   );
-}
-
-function inputByName(name: string) {
-  const input = document.querySelector<HTMLInputElement>(`input[name="${name}"]`);
-  if (!input) throw new Error(`Missing input ${name}`);
-  return input;
 }

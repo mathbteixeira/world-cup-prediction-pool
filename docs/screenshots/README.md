@@ -21,14 +21,20 @@ npm run dev
 
 Open `http://localhost:5173`.
 
+## Current Capture Status
+
+No screenshot images are committed yet. In the Codex environment used for this pass, Docker was not available: Testcontainers reported that it could not find a valid Docker environment, so the backend could not be run with the local PostgreSQL dependency for honest end-to-end screenshots.
+
 ## Local Accounts
 
-The `local` and `dev` profiles seed a demo admin account when `app.demo.admin.enabled=true`:
+The `local` profile seeds a demo admin account by default for local manual testing:
 
 - Email: `admin@example.com`
 - Password: `admin12345`
 
 Register a normal user in the UI for non-admin flows.
+
+The `dev` profile requires explicit opt-in with `APP_DEMO_ADMIN_ENABLED=true`. Do not enable the demo admin seed in deployed or production environments.
 
 ## Capture Checklist
 

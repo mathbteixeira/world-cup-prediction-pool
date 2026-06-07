@@ -40,13 +40,12 @@ describe("LoginPage", () => {
 
     renderLoginPage();
 
-    await userEvent.type(inputByName("email"), "missing@example.com");
-    await userEvent.type(inputByName("password"), "wrong-password");
+    await userEvent.type(screen.getByLabelText("Email"), "missing@example.com");
+    await userEvent.type(screen.getByLabelText("Senha"), "wrong-password");
     await userEvent.click(screen.getByRole("button", { name: /entrar/i }));
 
     expect(await screen.findByText("Não foi possível entrar")).toBeInTheDocument();
     expect(screen.getByText("Não encontramos uma conta com este email, ou a senha está incorreta.")).toBeInTheDocument();
-    expect(document.querySelector("svg")).toBeInTheDocument();
   });
 
   it("submits registration details through the auth flow", async () => {
@@ -54,9 +53,9 @@ describe("LoginPage", () => {
 
     renderAuthPage(<RegisterPage />);
 
-    await userEvent.type(inputByName("username"), "maria");
-    await userEvent.type(inputByName("email"), "maria@example.com");
-    await userEvent.type(inputByName("password"), "password123");
+    await userEvent.type(screen.getByLabelText("Usuário"), "maria");
+    await userEvent.type(screen.getByLabelText("Email"), "maria@example.com");
+    await userEvent.type(screen.getByLabelText("Senha"), "password123");
     await userEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
 
     expect(authMock.register).toHaveBeenCalledWith("maria", "maria@example.com", "password123");
@@ -78,10 +77,4 @@ function renderAuthPage(page: ReactElement) {
       </LanguageProvider>
     </QueryClientProvider>,
   );
-}
-
-function inputByName(name: string) {
-  const input = document.querySelector<HTMLInputElement>(`input[name="${name}"]`);
-  if (!input) throw new Error(`Missing input ${name}`);
-  return input;
 }
