@@ -71,4 +71,7 @@ public interface ScoreEventRepository extends JpaRepository<ScoreEvent, UUID> {
 
     @Modifying
     void deleteByPredictionIdIn(Collection<UUID> predictionIds);
+
+    @Modifying
+    void deleteByPoolId(UUID poolId);
 }

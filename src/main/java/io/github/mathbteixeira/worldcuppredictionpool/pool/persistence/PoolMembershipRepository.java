@@ -14,4 +14,6 @@ public interface PoolMembershipRepository extends JpaRepository<PoolMembership, 
     List<PoolMembership> findAllByPoolIdIn(List<UUID> poolIds);
 
     Optional<PoolMembership> findByPoolIdAndUserId(UUID poolId, UUID userId);
+
+    void deleteByPoolId(UUID poolId);
 }

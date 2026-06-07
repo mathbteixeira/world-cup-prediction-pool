@@ -5,8 +5,13 @@ import io.github.mathbteixeira.worldcuppredictionpool.pool.api.PoolSummaryRespon
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolRole;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
+import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.ManagedParticipantRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.prediction.persistence.PredictionRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.LeaderboardEntryRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.PredictionCurrentScoreRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.ScoreEventRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.MatchStatus;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
@@ -16,6 +21,7 @@ import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.Mat
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TeamRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TournamentRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
+import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserRole;
 import io.github.mathbteixeira.worldcuppredictionpool.user.persistence.UserAccountRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,6 +38,11 @@ public class PoolService {
 
     private final PredictionPoolRepository predictionPoolRepository;
     private final PoolMembershipRepository poolMembershipRepository;
+    private final ManagedParticipantRepository managedParticipantRepository;
+    private final PredictionRepository predictionRepository;
+    private final ScoreEventRepository scoreEventRepository;
+    private final PredictionCurrentScoreRepository predictionCurrentScoreRepository;
+    private final LeaderboardEntryRepository leaderboardEntryRepository;
     private final TournamentRepository tournamentRepository;
     private final MatchRepository matchRepository;
     private final TeamRepository teamRepository;
@@ -39,12 +50,22 @@ public class PoolService {
 
     public PoolService(PredictionPoolRepository predictionPoolRepository,
                        PoolMembershipRepository poolMembershipRepository,
+                       ManagedParticipantRepository managedParticipantRepository,
+                       PredictionRepository predictionRepository,
+                       ScoreEventRepository scoreEventRepository,
+                       PredictionCurrentScoreRepository predictionCurrentScoreRepository,
+                       LeaderboardEntryRepository leaderboardEntryRepository,
                        TournamentRepository tournamentRepository,
                        MatchRepository matchRepository,
                        TeamRepository teamRepository,
                        UserAccountRepository userAccountRepository) {
         this.predictionPoolRepository = predictionPoolRepository;
         this.poolMembershipRepository = poolMembershipRepository;
+        this.managedParticipantRepository = managedParticipantRepository;
+        this.predictionRepository = predictionRepository;
+        this.scoreEventRepository = scoreEventRepository;
+        this.predictionCurrentScoreRepository = predictionCurrentScoreRepository;
+        this.leaderboardEntryRepository = leaderboardEntryRepository;
         this.tournamentRepository = tournamentRepository;
         this.matchRepository = matchRepository;
         this.teamRepository = teamRepository;
@@ -180,6 +201,26 @@ public class PoolService {
 
         PoolMembership membership = poolMembershipRepository.save(new PoolMembership(pool, user, PoolRole.MEMBER));
         return toResponse(membership.getPool(), membership.getRole());
+    }
+
+    @Transactional
+    public void deletePool(UUID poolId, String email) {
+        PredictionPool pool = predictionPoolRepository.findById(poolId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
+        UserAccount user = getUserByEmail(email);
+        boolean isAdmin = user.getRole() == UserRole.ADMIN;
+        boolean isOwner = pool.getOwner().getId().equals(user.getId());
+        if (!isAdmin && !isOwner) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the pool owner or an admin can delete this pool");
+        }
+
+        leaderboardEntryRepository.deleteByPoolId(poolId);
+        scoreEventRepository.deleteByPoolId(poolId);
+        predictionCurrentScoreRepository.deleteByPoolId(poolId);
+        predictionRepository.deleteByPoolId(poolId);
+        managedParticipantRepository.deleteByPoolId(poolId);
+        poolMembershipRepository.deleteByPoolId(poolId);
+        predictionPoolRepository.delete(pool);
     }
 
     private UserAccount getUserByEmail(String email) {

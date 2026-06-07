@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { ArrowRight, CalendarClock, Plus, Ticket, Trophy } from "lucide-react";
+import { ArrowRight, CalendarClock, Plus, Ticket, Trash2, Trophy } from "lucide-react";
 import { api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
+import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -54,6 +55,7 @@ export function DashboardPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { user } = useAuth();
   const poolsQuery = useQuery({ queryKey: ["pools"], queryFn: api.listPools });
   const tournamentsQuery = useQuery({ queryKey: ["tournaments"], queryFn: api.listTournaments });
   const createForm = useForm<CreateForm>({
@@ -126,6 +128,12 @@ export function DashboardPage() {
     },
     onError: (error) => joinForm.setError("root", { message: error instanceof Error ? error.message : "Join failed" }),
   });
+  const deletePool = useMutation({
+    mutationFn: (poolId: string) => api.deletePool(poolId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["pools"] });
+    },
+  });
 
   const pools = poolsQuery.data ?? [];
 
@@ -178,12 +186,29 @@ export function DashboardPage() {
                     <span className="text-muted-foreground">{t("inviteCode")} </span>
                     <span className="font-mono font-semibold">{pool.inviteCode}</span>
                   </div>
-                  <Button asChild>
-                    <Link to={`/pools/${pool.id}`}>
-                      {t("openPool")}
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    {(pool.membershipRole === "OWNER" || user?.role === "ADMIN") ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={deletePool.isPending}
+                        onClick={() => {
+                          if (window.confirm(t("deletePoolConfirm"))) {
+                            deletePool.mutate(pool.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t("deletePool")}
+                      </Button>
+                    ) : null}
+                    <Button asChild>
+                      <Link to={`/pools/${pool.id}`}>
+                        {t("openPool")}
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))

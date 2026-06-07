@@ -92,6 +92,7 @@ export const api = {
   getPool: (poolId: string) => request<PoolSummary>(`/api/v1/pools/${poolId}`),
   createPool: (body: CreatePoolRequest) =>
     request<PoolSummary>("/api/v1/pools", { method: "POST", body: JSON.stringify(body) }),
+  deletePool: (poolId: string) => request<void>(`/api/v1/pools/${poolId}`, { method: "DELETE" }),
   joinPool: (inviteCode: string) =>
     request<PoolSummary>("/api/v1/pools/join", { method: "POST", body: JSON.stringify({ inviteCode }) }),
   listTournaments: () => request<TournamentSummary[]>("/api/v1/tournaments"),

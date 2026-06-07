@@ -76,4 +76,18 @@ describe("api client", () => {
     );
     expect(fetchMock.mock.calls[1][1]?.method).toBe("PUT");
   });
+
+  it("deletes pools through the pool resource", async () => {
+    configureApiClient({ getToken: () => "abc", onUnauthorized: vi.fn() });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, {
+        status: 200,
+      }),
+    );
+
+    await api.deletePool("pool-1");
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:8080/api/v1/pools/pool-1");
+    expect(fetchMock.mock.calls[0][1]?.method).toBe("DELETE");
+  });
 });

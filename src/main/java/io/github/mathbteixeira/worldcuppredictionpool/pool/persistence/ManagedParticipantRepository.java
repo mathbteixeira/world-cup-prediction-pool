@@ -16,4 +16,6 @@ public interface ManagedParticipantRepository extends JpaRepository<ManagedParti
     Optional<ManagedParticipant> findByPoolIdAndId(UUID poolId, UUID participantId);
 
     boolean existsByPoolIdAndDisplayNameIgnoreCase(UUID poolId, String displayName);
+
+    void deleteByPoolId(UUID poolId);
 }

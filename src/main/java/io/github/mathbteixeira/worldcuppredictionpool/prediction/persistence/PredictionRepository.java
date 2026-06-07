@@ -24,6 +24,9 @@ public interface PredictionRepository extends JpaRepository<Prediction, UUID> {
     @Modifying
     void deleteByManagedParticipantId(UUID managedParticipantId);
 
+    @Modifying
+    void deleteByPoolId(UUID poolId);
+
     @Query("""
             select prediction
             from Prediction prediction

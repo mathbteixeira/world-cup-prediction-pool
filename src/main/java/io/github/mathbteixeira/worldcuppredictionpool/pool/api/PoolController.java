@@ -74,6 +74,19 @@ public class PoolController {
         return poolService.getPool(poolId, authentication.getName());
     }
 
+    @DeleteMapping("/{poolId}")
+    @Operation(summary = "Delete pool", description = "Deletes a prediction pool. Only the pool owner or an admin can delete a pool.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Pool deleted"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Current user cannot delete the pool"),
+            @ApiResponse(responseCode = "404", description = "Pool not found")
+    })
+    public void delete(@Parameter(description = "Prediction pool id") @PathVariable UUID poolId,
+                       Authentication authentication) {
+        poolService.deletePool(poolId, authentication.getName());
+    }
+
     @GetMapping("/{poolId}/leaderboard")
     @Operation(summary = "Get pool leaderboard", description = "Returns the current leaderboard for a prediction pool.")
     @ApiResponses({

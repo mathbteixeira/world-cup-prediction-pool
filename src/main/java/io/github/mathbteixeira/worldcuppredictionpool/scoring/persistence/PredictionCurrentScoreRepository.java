@@ -17,6 +17,9 @@ public interface PredictionCurrentScoreRepository extends JpaRepository<Predicti
     @Modifying
     void deleteByPredictionIdIn(Collection<UUID> predictionIds);
 
+    @Modifying
+    void deleteByPoolId(UUID poolId);
+
     @Query("""
             select pcs.pool.id as poolId, pcs.user.id as userId, sum(pcs.pointsAwarded) as totalPoints
             from PredictionCurrentScore pcs
