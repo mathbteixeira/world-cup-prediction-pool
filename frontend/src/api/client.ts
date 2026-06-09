@@ -76,6 +76,7 @@ async function parseError(response: Response) {
 function queryString(filters: MatchFilters) {
   const params = new URLSearchParams();
   if (filters.group) params.set("group", filters.group.trim());
+  if (filters.stage) params.set("stage", filters.stage.trim());
   if (filters.team) params.set("team", filters.team.trim());
   if (filters.predictableOnly) params.set("predictableOnly", "true");
   const value = params.toString();

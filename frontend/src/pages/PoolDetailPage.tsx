@@ -1,4 +1,4 @@
-import { useMemo, useState, type Dispatch, type SelectHTMLAttributes, type SetStateAction } from "react";
+import { forwardRef, useMemo, useState, type Dispatch, type SelectHTMLAttributes, type SetStateAction } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,8 +23,10 @@ import { formatDateTime } from "../lib/utils";
 type ScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
 type ManagedScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
 type MatchSortDirection = "asc" | "desc";
+type MatchRound = "GROUP_STAGE" | "ROUND_OF_32" | "ROUND_OF_16" | "QUARTER_FINAL" | "SEMI_FINAL" | "THIRD_PLACE" | "FINAL";
 type MatchFiltersState = {
   group: string;
+  round: string;
   teams: string[];
   predictableOnly: boolean;
   sortDirection: MatchSortDirection;
@@ -56,6 +58,16 @@ const managedParticipantSchema = z.object({
 
 type ManagedParticipantForm = z.infer<typeof managedParticipantSchema>;
 
+const MATCH_ROUNDS: MatchRound[] = [
+  "GROUP_STAGE",
+  "ROUND_OF_32",
+  "ROUND_OF_16",
+  "QUARTER_FINAL",
+  "SEMI_FINAL",
+  "THIRD_PLACE",
+  "FINAL",
+];
+
 export function PoolDetailPage() {
   const { poolId = "" } = useParams();
   const { user } = useAuth();
@@ -63,6 +75,7 @@ export function PoolDetailPage() {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<MatchFiltersState>({
     group: "",
+    round: "",
     teams: [],
     predictableOnly: false,
     sortDirection: "asc",
@@ -521,6 +534,19 @@ function MatchFilters({
       <CardContent className="flex flex-col gap-3 pt-5 lg:flex-row lg:items-start">
         <Filter className="hidden h-4 w-4 text-muted-foreground sm:block" />
         <select
+          aria-label={t("round")}
+          className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm lg:w-44"
+          value={filters.round}
+          onChange={(event) => onChange({ ...filters, round: event.target.value })}
+        >
+          <option value="">{t("allRounds")}</option>
+          {MATCH_ROUNDS.map((round) => (
+            <option key={round} value={round}>
+              {roundLabel(round, t)}
+            </option>
+          ))}
+        </select>
+        <select
           aria-label={t("group")}
           className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm lg:w-40"
           value={filters.group}
@@ -780,17 +806,17 @@ function AdminParticipantsCard({
   mutation: UseMutationResult<MatchSummary, Error, ParticipantForm>;
 }) {
   const { language, t } = useLanguage();
-  const unresolvedMatches = matches.filter((match) => !hasResolvedParticipants(match));
+  const knockoutMatches = matches.filter(isKnockoutMatch);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("participantResolution")}</CardTitle>
-        <CardDescription>{t("participantResolutionDesc")}</CardDescription>
+        <CardTitle>{t("knockoutTeamUpdate")}</CardTitle>
+        <CardDescription>{t("knockoutTeamUpdateDesc")}</CardDescription>
       </CardHeader>
       <CardContent>
-        {unresolvedMatches.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("noUnresolved")}</p>
+        {knockoutMatches.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("noKnockoutMatches")}</p>
         ) : (
           <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="grid gap-4 lg:grid-cols-[1.5fr_1fr_1fr_auto] lg:items-end">
             {form.formState.errors.root ? (
@@ -798,12 +824,12 @@ function AdminParticipantsCard({
                 <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
               </Alert>
             ) : null}
-            <FormField label={t("placeholderMatch")} error={form.formState.errors.matchId}>
+            <FormField label={t("knockoutMatch")} error={form.formState.errors.matchId}>
               <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...form.register("matchId")}>
                 <option value="">{t("selectMatch")}</option>
-                {unresolvedMatches.map((match) => (
+                {knockoutMatches.map((match) => (
                   <option key={match.matchId} value={match.matchId}>
-                    {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt, language)}
+                    {roundLabel(match.stage, t)} - {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt, language)}
                   </option>
                 ))}
               </select>
@@ -816,7 +842,7 @@ function AdminParticipantsCard({
             </FormField>
             <Button disabled={mutation.isPending || teams.length < 2}>
               <Shield className="h-4 w-4" />
-              {t("resolve")}
+              {t("updateTeams")}
             </Button>
           </form>
         )}
@@ -825,14 +851,14 @@ function AdminParticipantsCard({
   );
 }
 
-function TeamSelect({
+const TeamSelect = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & { teams: TeamSummary[] }>(function TeamSelect({
   teams,
   ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & { teams: TeamSummary[] }) {
+}, ref) {
   const { language, t } = useLanguage();
 
   return (
-    <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...props}>
+    <select ref={ref} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...props}>
       <option value="">{t("selectTeam")}</option>
       {teams.map((team) => (
         <option key={team.id} value={team.id}>
@@ -841,7 +867,7 @@ function TeamSelect({
       ))}
     </select>
   );
-}
+});
 
 function AdminResultCard({
   matches,
@@ -937,6 +963,10 @@ function hasResolvedParticipants(match: MatchSummary) {
   return Boolean(match.homeTeam && match.awayTeam);
 }
 
+function isKnockoutMatch(match: MatchSummary) {
+  return match.stage !== "GROUP_STAGE";
+}
+
 function FeedbackAlert({ feedback }: { feedback: Exclude<FeedbackMessage, null> }) {
   const isError = feedback.type === "error";
   return (
@@ -1000,6 +1030,7 @@ function filterAndSortMatches(matches: MatchSummary[], filters: MatchFiltersStat
   return matches
     .filter((match) => {
       if (filters.group && match.groupName !== filters.group) return false;
+      if (filters.round && match.stage !== filters.round) return false;
       if (filters.predictableOnly && !match.predictionOpen) return false;
       if (selectedTeams.size === 0) return true;
 
@@ -1011,4 +1042,25 @@ function filterAndSortMatches(matches: MatchSummary[], filters: MatchFiltersStat
       const comparison = new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime();
       return filters.sortDirection === "asc" ? comparison : -comparison;
     });
+}
+
+function roundLabel(stage: string, t: ReturnType<typeof useLanguage>["t"]) {
+  switch (stage) {
+    case "GROUP_STAGE":
+      return t("roundGroups");
+    case "ROUND_OF_32":
+      return t("roundOf32");
+    case "ROUND_OF_16":
+      return t("roundOf16");
+    case "QUARTER_FINAL":
+      return t("roundOf8");
+    case "SEMI_FINAL":
+      return t("semifinals");
+    case "THIRD_PLACE":
+      return t("thirdPlace");
+    case "FINAL":
+      return t("final");
+    default:
+      return stage;
+  }
 }

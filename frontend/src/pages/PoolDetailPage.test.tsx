@@ -16,6 +16,11 @@ const apiMock = vi.hoisted(() => ({
   leaderboard: vi.fn(),
   listManagedParticipants: vi.fn(),
   submitPrediction: vi.fn(),
+  resolveParticipants: vi.fn(),
+}));
+
+const authState = vi.hoisted(() => ({
+  user: { userId: "user-1", username: "alice", email: "alice@example.com", role: "USER" },
 }));
 
 vi.mock("../api/client", () => ({
@@ -33,7 +38,7 @@ vi.mock("../api/client", () => ({
 
 vi.mock("../auth/AuthProvider", () => ({
   useAuth: () => ({
-    user: { userId: "user-1", username: "alice", email: "alice@example.com", role: "USER", accessToken: "token" },
+    user: authState.user,
   }),
 }));
 
@@ -41,6 +46,7 @@ describe("PoolDetailPage", () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.clearAllMocks();
+    authState.user = { userId: "user-1", username: "alice", email: "alice@example.com", role: "USER" };
     apiMock.getPool.mockResolvedValue({
       poolId: "pool-1",
       name: "Family Pool",
@@ -75,6 +81,18 @@ describe("PoolDetailPage", () => {
       homeScore: 2,
       awayScore: 1,
       submittedAt: "2026-05-31T12:00:00Z",
+    });
+    apiMock.resolveParticipants.mockResolvedValue({
+      matchId: "match-2",
+      groupName: null,
+      kickoffAt: "2026-07-01T12:00:00Z",
+      status: "SCHEDULED",
+      predictionOpen: true,
+      homeTeam: { id: "team-1", name: "Brazil", fifaCode: "BRA" },
+      awayTeam: { id: "team-2", name: "Spain", fifaCode: "ESP" },
+      homePlaceholder: null,
+      awayPlaceholder: null,
+      result: null,
     });
   });
 
@@ -115,6 +133,94 @@ describe("PoolDetailPage", () => {
       expect(apiMock.submitPrediction).toHaveBeenCalledWith("pool-1", "match-1", {
         homeScore: 2,
         awayScore: 1,
+      }),
+    );
+  });
+
+  it("filters matches by round", async () => {
+    apiMock.listMatches.mockResolvedValue([
+      {
+        matchId: "match-1",
+        groupName: "A",
+        kickoffAt: "2026-06-30T12:00:00Z",
+        stage: "GROUP_STAGE",
+        status: "SCHEDULED",
+        predictionOpen: true,
+        homeTeam: { id: "team-1", name: "Brazil", fifaCode: "BRA" },
+        awayTeam: { id: "team-2", name: "Spain", fifaCode: "ESP" },
+        homePlaceholder: null,
+        awayPlaceholder: null,
+        result: null,
+      },
+      {
+        matchId: "match-2",
+        groupName: null,
+        kickoffAt: "2026-07-10T12:00:00Z",
+        stage: "QUARTER_FINAL",
+        status: "SCHEDULED",
+        predictionOpen: false,
+        homeTeam: null,
+        awayTeam: null,
+        homePlaceholder: "W89",
+        awayPlaceholder: "W90",
+        result: null,
+      },
+    ]);
+
+    renderPoolDetailPage();
+
+    await waitFor(() => expect(screen.getByText("Family Pool")).toBeInTheDocument());
+    await userEvent.selectOptions(screen.getByLabelText("Fase"), "QUARTER_FINAL");
+
+    expect(screen.queryByText(/Brazil vs/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/W89/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Indefinido")).toBeInTheDocument();
+  });
+
+  it("allows admins to update knockout match teams", async () => {
+    authState.user = { userId: "admin-1", username: "admin", email: "admin@example.com", role: "ADMIN" };
+    apiMock.listMatches.mockResolvedValue([
+      {
+        matchId: "match-1",
+        groupName: "A",
+        kickoffAt: "2026-06-30T12:00:00Z",
+        stage: "GROUP_STAGE",
+        status: "SCHEDULED",
+        predictionOpen: true,
+        homeTeam: { id: "team-1", name: "Brazil", fifaCode: "BRA" },
+        awayTeam: { id: "team-2", name: "Spain", fifaCode: "ESP" },
+        homePlaceholder: null,
+        awayPlaceholder: null,
+        result: null,
+      },
+      {
+        matchId: "match-2",
+        groupName: null,
+        kickoffAt: "2026-07-10T12:00:00Z",
+        stage: "QUARTER_FINAL",
+        status: "SCHEDULED",
+        predictionOpen: false,
+        homeTeam: null,
+        awayTeam: null,
+        homePlaceholder: "W89",
+        awayPlaceholder: "W90",
+        result: null,
+      },
+    ]);
+
+    renderPoolDetailPage();
+
+    await waitFor(() => expect(screen.getByText("Family Pool")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("tab", { name: "Admin do Torneio" }));
+    await userEvent.selectOptions(screen.getByLabelText("Jogo de mata-mata"), "match-2");
+    await userEvent.selectOptions(screen.getAllByLabelText("Mandante")[0], "team-1");
+    await userEvent.selectOptions(screen.getAllByLabelText("Visitante")[0], "team-2");
+    await userEvent.click(screen.getByRole("button", { name: "Atualizar times" }));
+
+    await waitFor(() =>
+      expect(apiMock.resolveParticipants).toHaveBeenCalledWith("match-2", {
+        homeTeamId: "team-1",
+        awayTeamId: "team-2",
       }),
     );
   });

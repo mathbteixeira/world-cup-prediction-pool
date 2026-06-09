@@ -147,6 +147,7 @@ export type RecalculationResponse = {
 
 export type MatchFilters = {
   group?: string;
+  stage?: string;
   team?: string;
   predictableOnly?: boolean;
 };

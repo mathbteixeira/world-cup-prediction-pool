@@ -16,6 +16,8 @@ import java.time.Instant;
 @Table(name = "matches")
 public class Match extends BaseEntity {
 
+    private static final String GROUP_STAGE = "GROUP_STAGE";
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "tournament_id", nullable = false)
     private Tournament tournament;
@@ -127,6 +129,10 @@ public class Match extends BaseEntity {
 
     public boolean hasResolvedTeams() {
         return homeTeam != null && awayTeam != null;
+    }
+
+    public boolean isKnockoutMatch() {
+        return !GROUP_STAGE.equals(stage);
     }
 
     public void resolveParticipants(Team homeTeam, Team awayTeam) {
