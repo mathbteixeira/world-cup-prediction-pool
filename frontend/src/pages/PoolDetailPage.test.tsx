@@ -177,53 +177,6 @@ describe("PoolDetailPage", () => {
     expect(screen.getByText("Indefinido")).toBeInTheDocument();
   });
 
-  it("allows admins to update knockout match teams", async () => {
-    authState.user = { userId: "admin-1", username: "admin", email: "admin@example.com", role: "ADMIN" };
-    apiMock.listMatches.mockResolvedValue([
-      {
-        matchId: "match-1",
-        groupName: "A",
-        kickoffAt: "2026-06-30T12:00:00Z",
-        stage: "GROUP_STAGE",
-        status: "SCHEDULED",
-        predictionOpen: true,
-        homeTeam: { id: "team-1", name: "Brazil", fifaCode: "BRA" },
-        awayTeam: { id: "team-2", name: "Spain", fifaCode: "ESP" },
-        homePlaceholder: null,
-        awayPlaceholder: null,
-        result: null,
-      },
-      {
-        matchId: "match-2",
-        groupName: null,
-        kickoffAt: "2026-07-10T12:00:00Z",
-        stage: "QUARTER_FINAL",
-        status: "SCHEDULED",
-        predictionOpen: false,
-        homeTeam: null,
-        awayTeam: null,
-        homePlaceholder: "W89",
-        awayPlaceholder: "W90",
-        result: null,
-      },
-    ]);
-
-    renderPoolDetailPage();
-
-    await waitFor(() => expect(screen.getByText("Family Pool")).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("tab", { name: "Admin do Torneio" }));
-    await userEvent.selectOptions(screen.getByLabelText("Jogo de mata-mata"), "match-2");
-    await userEvent.selectOptions(screen.getAllByLabelText("Mandante")[0], "team-1");
-    await userEvent.selectOptions(screen.getAllByLabelText("Visitante")[0], "team-2");
-    await userEvent.click(screen.getByRole("button", { name: "Atualizar times" }));
-
-    await waitFor(() =>
-      expect(apiMock.resolveParticipants).toHaveBeenCalledWith("match-2", {
-        homeTeamId: "team-1",
-        awayTeamId: "team-2",
-      }),
-    );
-  });
 });
 
 function renderPoolDetailPage() {

@@ -32,6 +32,16 @@ export function AppLayout() {
             >
               {t("dashboard")}
             </NavLink>
+            {user?.role === "ADMIN" ? (
+              <NavLink
+                to="/admin"
+                className={({ isActive }) =>
+                  cn("rounded-md px-3 py-2 text-sm font-medium hover:bg-muted", isActive && "bg-muted")
+                }
+              >
+                {t("admin")}
+              </NavLink>
+            ) : null}
             <div className="flex rounded-md border bg-white p-1">
               <button
                 type="button"

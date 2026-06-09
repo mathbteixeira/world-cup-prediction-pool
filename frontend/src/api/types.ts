@@ -132,6 +132,25 @@ export type ManagedParticipant = {
   name: string;
 };
 
+export type PoolMember = {
+  userId: string;
+  username: string;
+  email: string;
+  role: "OWNER" | "MEMBER";
+};
+
+export type AdminPoolSummary = {
+  id: string;
+  tournamentId: string;
+  singleMatchId: string | null;
+  poolScope: "TOURNAMENT" | "SINGLE_MATCH";
+  name: string;
+  description: string | null;
+  inviteCode: string;
+  owner: PoolMember;
+  memberCount: number;
+};
+
 export type RecalculationResponse = {
   matchId: string;
   homeScore: number;

@@ -21,11 +21,17 @@ public interface PredictionRepository extends JpaRepository<Prediction, UUID> {
     @Query("select prediction.id from Prediction prediction where prediction.managedParticipant.id = :managedParticipantId")
     List<UUID> findIdsByManagedParticipantId(@Param("managedParticipantId") UUID managedParticipantId);
 
+    @Query("select prediction.id from Prediction prediction where prediction.pool.id = :poolId and prediction.user.id = :userId")
+    List<UUID> findIdsByPoolIdAndUserId(@Param("poolId") UUID poolId, @Param("userId") UUID userId);
+
     @Modifying
     void deleteByManagedParticipantId(UUID managedParticipantId);
 
     @Modifying
     void deleteByPoolId(UUID poolId);
+
+    @Modifying
+    void deleteByPoolIdAndUserId(UUID poolId, UUID userId);
 
     @Query("""
             select prediction

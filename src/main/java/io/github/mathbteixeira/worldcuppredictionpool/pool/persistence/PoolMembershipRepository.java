@@ -13,7 +13,13 @@ public interface PoolMembershipRepository extends JpaRepository<PoolMembership, 
 
     List<PoolMembership> findAllByPoolIdIn(List<UUID> poolIds);
 
+    List<PoolMembership> findAllByPoolId(UUID poolId);
+
     Optional<PoolMembership> findByPoolIdAndUserId(UUID poolId, UUID userId);
+
+    long countByPoolId(UUID poolId);
+
+    void deleteByPoolIdAndUserId(UUID poolId, UUID userId);
 
     void deleteByPoolId(UUID poolId);
 }

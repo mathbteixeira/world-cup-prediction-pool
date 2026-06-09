@@ -1,13 +1,12 @@
-import { forwardRef, useMemo, useState, type Dispatch, type SelectHTMLAttributes, type SetStateAction } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
-import { ArrowLeft, ArrowUpDown, CheckCircle2, Clipboard, Filter, RefreshCw, Shield, Trash2, TriangleAlert, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, CheckCircle2, Clipboard, Filter, Trash2, TriangleAlert, UserPlus } from "lucide-react";
 import { ApiError, api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
-import type { ManagedParticipant, MatchSummary, PoolPrediction, PredictionResponse, RecalculationResponse, TeamSummary } from "../api/types";
-import { useAuth } from "../auth/AuthProvider";
+import type { ManagedParticipant, MatchSummary, PoolPrediction, PredictionResponse, TeamSummary } from "../api/types";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -33,25 +32,6 @@ type MatchFiltersState = {
 };
 type FeedbackMessage = { type: "success" | "error"; message: string } | null;
 
-const resultSchema = z.object({
-  matchId: z.string().min(1, "Choose a match"),
-  homeScore: z.coerce.number().int().min(0),
-  awayScore: z.coerce.number().int().min(0),
-  homePenaltyScore: z.union([z.literal(""), z.coerce.number().int().min(0)]).optional(),
-  awayPenaltyScore: z.union([z.literal(""), z.coerce.number().int().min(0)]).optional(),
-  finalResult: z.boolean(),
-});
-
-type ResultForm = z.infer<typeof resultSchema>;
-
-const participantSchema = z.object({
-  matchId: z.string().min(1, "Choose a placeholder match"),
-  homeTeamId: z.string().min(1, "Choose a home team"),
-  awayTeamId: z.string().min(1, "Choose an away team"),
-});
-
-type ParticipantForm = z.infer<typeof participantSchema>;
-
 const managedParticipantSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
 });
@@ -70,7 +50,6 @@ const MATCH_ROUNDS: MatchRound[] = [
 
 export function PoolDetailPage() {
   const { poolId = "" } = useParams();
-  const { user } = useAuth();
   const { language, t } = useLanguage();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<MatchFiltersState>({
@@ -83,7 +62,6 @@ export function PoolDetailPage() {
   const [drafts, setDrafts] = useState<ScoreDraft>({});
   const [managedDrafts, setManagedDrafts] = useState<ManagedScoreDraft>({});
   const [feedback, setFeedback] = useState<FeedbackMessage>(null);
-  const [recalculation, setRecalculation] = useState<RecalculationResponse | null>(null);
 
   const poolQuery = useQuery({ queryKey: ["pool", poolId], queryFn: () => api.getPool(poolId), enabled: Boolean(poolId) });
   const tournamentId = poolQuery.data?.tournamentId;
@@ -137,54 +115,11 @@ export function PoolDetailPage() {
     onError: (error) => setFeedback({ type: "error", message: predictionErrorMessage(error, t) }),
   });
 
-  const resultForm = useForm<ResultForm>({
-    resolver: zodResolver(resultSchema),
-    defaultValues: { matchId: "", homeScore: 0, awayScore: 0, homePenaltyScore: "", awayPenaltyScore: "", finalResult: true },
-  });
-  const participantForm = useForm<ParticipantForm>({
-    resolver: zodResolver(participantSchema),
-    defaultValues: { matchId: "", homeTeamId: "", awayTeamId: "" },
-  });
   const managedParticipantForm = useForm<ManagedParticipantForm>({
     resolver: zodResolver(managedParticipantSchema),
     defaultValues: { name: "" },
   });
 
-  const upsertResult = useMutation({
-    mutationFn: (values: ResultForm) =>
-      api.upsertResult(values.matchId, {
-        homeScore: values.homeScore,
-        awayScore: values.awayScore,
-        homePenaltyScore: values.homePenaltyScore === "" ? null : values.homePenaltyScore,
-        awayPenaltyScore: values.awayPenaltyScore === "" ? null : values.awayPenaltyScore,
-        finalResult: values.finalResult,
-      }),
-    onSuccess: async (response) => {
-      setRecalculation(response);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["matches", tournamentId] }),
-        queryClient.invalidateQueries({ queryKey: ["predictions", poolId] }),
-        queryClient.invalidateQueries({ queryKey: ["leaderboard", poolId] }),
-      ]);
-    },
-    onError: (error) => resultForm.setError("root", { message: error instanceof Error ? error.message : "Result update failed" }),
-  });
-  const resolveParticipants = useMutation({
-    mutationFn: (values: ParticipantForm) =>
-      api.resolveParticipants(values.matchId, {
-        homeTeamId: values.homeTeamId,
-        awayTeamId: values.awayTeamId,
-      }),
-    onSuccess: async () => {
-      participantForm.reset();
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["matches", tournamentId] }),
-        queryClient.invalidateQueries({ queryKey: ["predictions", poolId] }),
-      ]);
-    },
-    onError: (error) =>
-      participantForm.setError("root", { message: error instanceof Error ? error.message : "Participant resolution failed" }),
-  });
   const createManagedParticipant = useMutation({
     mutationFn: (values: ManagedParticipantForm) => api.createManagedParticipant(poolId, { name: values.name.trim() }),
     onSuccess: async () => {
@@ -274,7 +209,6 @@ export function PoolDetailPage() {
   }
 
   const pool = poolQuery.data;
-  const isAdmin = user?.role === "ADMIN";
   const tournamentName = pool.tournamentId === WORLD_CUP_2026_TOURNAMENT_ID ? t("worldCup2026") : pool.tournamentId.slice(0, 8);
   const scopeLabel = pool.poolScope === "SINGLE_MATCH" ? t("singleMatchPool") : t("tournamentPool");
   const canManageParticipants = pool.poolScope === "SINGLE_MATCH" && pool.membershipRole === "OWNER";
@@ -304,16 +238,6 @@ export function PoolDetailPage() {
             <Badge variant="outline">{t("tournament")} {tournamentName}</Badge>
           </div>
         </div>
-        {isAdmin ? (
-          <Badge variant="warning" className="gap-1">
-            <Shield className="h-3 w-3" />
-            {t("tournamentAdminAvailable")}
-          </Badge>
-        ) : (
-          <p className="max-w-sm text-sm text-muted-foreground">
-            {t("poolAdminHidden")}
-          </p>
-        )}
       </section>
 
       <Tabs defaultValue="matches">
@@ -322,7 +246,6 @@ export function PoolDetailPage() {
           <TabsTrigger value="predictions">{t("predictions")}</TabsTrigger>
           <TabsTrigger value="leaderboard">{t("leaderboard")}</TabsTrigger>
           {canManageParticipants ? <TabsTrigger value="managed">{t("managedParticipants")}</TabsTrigger> : null}
-          {isAdmin ? <TabsTrigger value="admin">{t("tournamentAdmin")}</TabsTrigger> : null}
         </TabsList>
         {feedback ? <FeedbackAlert feedback={feedback} /> : null}
 
@@ -481,20 +404,6 @@ export function PoolDetailPage() {
           </TabsContent>
         ) : null}
 
-        {isAdmin ? (
-          <TabsContent value="admin">
-            <div className="space-y-4">
-              <Alert>
-                <AlertTitle>{t("tournamentWideOps")}</AlertTitle>
-                <AlertDescription>
-                  {t("tournamentWideOpsDesc")}
-                </AlertDescription>
-              </Alert>
-              <AdminParticipantsCard matches={allMatches} teams={teams} form={participantForm} mutation={resolveParticipants} />
-              <AdminResultCard matches={allMatches} form={resultForm} mutation={upsertResult} recalculation={recalculation} />
-            </div>
-          </TabsContent>
-        ) : null}
       </Tabs>
     </div>
   );
@@ -794,177 +703,8 @@ function ManagedParticipantsCard({
   );
 }
 
-function AdminParticipantsCard({
-  matches,
-  teams,
-  form,
-  mutation,
-}: {
-  matches: MatchSummary[];
-  teams: TeamSummary[];
-  form: UseFormReturn<ParticipantForm>;
-  mutation: UseMutationResult<MatchSummary, Error, ParticipantForm>;
-}) {
-  const { language, t } = useLanguage();
-  const knockoutMatches = matches.filter(isKnockoutMatch);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("knockoutTeamUpdate")}</CardTitle>
-        <CardDescription>{t("knockoutTeamUpdateDesc")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {knockoutMatches.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("noKnockoutMatches")}</p>
-        ) : (
-          <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="grid gap-4 lg:grid-cols-[1.5fr_1fr_1fr_auto] lg:items-end">
-            {form.formState.errors.root ? (
-              <Alert className="border-destructive/30 lg:col-span-4">
-                <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
-              </Alert>
-            ) : null}
-            <FormField label={t("knockoutMatch")} error={form.formState.errors.matchId}>
-              <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...form.register("matchId")}>
-                <option value="">{t("selectMatch")}</option>
-                {knockoutMatches.map((match) => (
-                  <option key={match.matchId} value={match.matchId}>
-                    {roundLabel(match.stage, t)} - {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt, language)}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label={t("homeTeam")} error={form.formState.errors.homeTeamId}>
-              <TeamSelect teams={teams} {...form.register("homeTeamId")} />
-            </FormField>
-            <FormField label={t("awayTeam")} error={form.formState.errors.awayTeamId}>
-              <TeamSelect teams={teams} {...form.register("awayTeamId")} />
-            </FormField>
-            <Button disabled={mutation.isPending || teams.length < 2}>
-              <Shield className="h-4 w-4" />
-              {t("updateTeams")}
-            </Button>
-          </form>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-const TeamSelect = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & { teams: TeamSummary[] }>(function TeamSelect({
-  teams,
-  ...props
-}, ref) {
-  const { language, t } = useLanguage();
-
-  return (
-    <select ref={ref} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...props}>
-      <option value="">{t("selectTeam")}</option>
-      {teams.map((team) => (
-        <option key={team.id} value={team.id}>
-          {flagForFifaCode(team.fifaCode)} {team.fifaCode} - {team.name}
-        </option>
-      ))}
-    </select>
-  );
-});
-
-function AdminResultCard({
-  matches,
-  form,
-  mutation,
-  recalculation,
-}: {
-  matches: MatchSummary[];
-  form: UseFormReturn<ResultForm>;
-  mutation: UseMutationResult<RecalculationResponse, Error, ResultForm>;
-  recalculation: RecalculationResponse | null;
-}) {
-  const { language, t } = useLanguage();
-  const resolvedMatches = matches.filter(hasResolvedParticipants);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("resultUpdate")}</CardTitle>
-        <CardDescription>{t("resultUpdateDesc")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="grid gap-4 lg:grid-cols-[1.6fr_repeat(4,0.6fr)_auto] lg:items-end">
-          {form.formState.errors.root ? (
-            <Alert className="border-destructive/30 lg:col-span-6">
-              <AlertDescription>{form.formState.errors.root.message}</AlertDescription>
-            </Alert>
-          ) : null}
-          <FormField label={t("match")} error={form.formState.errors.matchId}>
-            <select className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm" {...form.register("matchId")}>
-              <option value="">{t("selectMatch")}</option>
-              {resolvedMatches.map((match) => (
-                <option key={match.matchId} value={match.matchId}>
-                  {participantCode(match, "home")} vs {participantCode(match, "away")} - {formatDateTime(match.kickoffAt, language)}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label={t("home")} error={form.formState.errors.homeScore}>
-            <Input type="number" min={0} {...form.register("homeScore")} />
-          </FormField>
-          <FormField label={t("away")} error={form.formState.errors.awayScore}>
-            <Input type="number" min={0} {...form.register("awayScore")} />
-          </FormField>
-          <FormField label={t("homePens")} error={form.formState.errors.homePenaltyScore}>
-            <Input type="number" min={0} {...form.register("homePenaltyScore")} />
-          </FormField>
-          <FormField label={t("awayPens")} error={form.formState.errors.awayPenaltyScore}>
-            <Input type="number" min={0} {...form.register("awayPenaltyScore")} />
-          </FormField>
-          <Button disabled={mutation.isPending}>
-            <RefreshCw className="h-4 w-4" />
-            {t("recalculate")}
-          </Button>
-          <label className="flex items-center gap-2 text-sm lg:col-span-6">
-            <input type="checkbox" {...form.register("finalResult")} />
-            {t("finalResult")}
-          </label>
-        </form>
-        {recalculation ? (
-          <Alert className="mt-4">
-            <CheckCircle2 className="mr-2 inline h-4 w-4 text-emerald-700" />
-            <AlertTitle className="inline">{t("recalculationComplete")}</AlertTitle>
-            <AlertDescription className="mt-2 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <span>{t("scoredPredictions")}: {recalculation.scoredPredictions}</span>
-              <span>{t("affectedPools")}: {recalculation.affectedPools}</span>
-              <span>{t("idempotentReplay")}: {String(recalculation.idempotentReplay)}</span>
-              <span className="flex min-w-0 items-center gap-2">
-                <span>{t("checksum")}:</span>
-                <code className="min-w-0 truncate rounded bg-muted px-1.5 py-0.5 font-mono text-xs" title={recalculation.resultChecksum}>
-                  {shortChecksum(recalculation.resultChecksum)}
-                </code>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  title={recalculation.resultChecksum}
-                  onClick={() => navigator.clipboard?.writeText(recalculation.resultChecksum)}
-                >
-                  <Clipboard className="h-3.5 w-3.5" />
-                </Button>
-              </span>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
 function hasResolvedParticipants(match: MatchSummary) {
   return Boolean(match.homeTeam && match.awayTeam);
-}
-
-function isKnockoutMatch(match: MatchSummary) {
-  return match.stage !== "GROUP_STAGE";
 }
 
 function FeedbackAlert({ feedback }: { feedback: Exclude<FeedbackMessage, null> }) {
@@ -1005,10 +745,6 @@ function participantCode(match: MatchSummary, side: "home" | "away") {
 function participantFlag(match: MatchSummary, side: "home" | "away") {
   const team = side === "home" ? match.homeTeam : match.awayTeam;
   return team ? flagForFifaCode(team.fifaCode) : "🏳️";
-}
-
-function shortChecksum(checksum: string) {
-  return `${checksum.slice(0, 8)}...${checksum.slice(-8)}`;
 }
 
 function uniqueTeams(matches: MatchSummary[]) {

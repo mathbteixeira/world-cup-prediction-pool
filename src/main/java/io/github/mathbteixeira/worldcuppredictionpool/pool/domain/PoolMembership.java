@@ -47,4 +47,8 @@ public class PoolMembership extends BaseEntity {
     public PoolRole getRole() {
         return role;
     }
+
+    public void changeRole(PoolRole role) {
+        this.role = role;
+    }
 }

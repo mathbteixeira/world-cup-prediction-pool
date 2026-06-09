@@ -214,6 +214,17 @@ public class PoolService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the pool owner or an admin can delete this pool");
         }
 
+        deletePoolData(poolId, pool);
+    }
+
+    @Transactional
+    public void deletePoolAsAdmin(UUID poolId) {
+        PredictionPool pool = predictionPoolRepository.findById(poolId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pool not found"));
+        deletePoolData(poolId, pool);
+    }
+
+    private void deletePoolData(UUID poolId, PredictionPool pool) {
         leaderboardEntryRepository.deleteByPoolId(poolId);
         scoreEventRepository.deleteByPoolId(poolId);
         predictionCurrentScoreRepository.deleteByPoolId(poolId);
