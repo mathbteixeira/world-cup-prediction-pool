@@ -68,16 +68,55 @@ describe("PoolDetailPage", () => {
     apiMock.listPredictions.mockResolvedValue([]);
     apiMock.leaderboard.mockResolvedValue([]);
     apiMock.listManagedParticipants.mockResolvedValue([]);
+    apiMock.submitPrediction.mockResolvedValue({
+      predictionId: "prediction-1",
+      poolId: "pool-1",
+      matchId: "match-1",
+      homeScore: 2,
+      awayScore: 1,
+      submittedAt: "2026-05-31T12:00:00Z",
+    });
   });
 
   it("shows a Portuguese warning when saving after kickoff", async () => {
     renderPoolDetailPage();
 
     await waitFor(() => expect(screen.getByText("Family Pool")).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Salvar" }));
 
     expect(screen.getByText("Os palpites estão fechados para este jogo porque o horário de início já passou.")).toBeInTheDocument();
     expect(apiMock.submitPrediction).not.toHaveBeenCalled();
+  });
+
+  it("submits a prediction for an open match", async () => {
+    apiMock.listMatches.mockResolvedValue([
+      {
+        matchId: "match-1",
+        groupName: "A",
+        kickoffAt: "2026-06-30T12:00:00Z",
+        status: "SCHEDULED",
+        predictionOpen: true,
+        homeTeam: { id: "team-1", name: "Brazil", fifaCode: "BRA" },
+        awayTeam: { id: "team-2", name: "Spain", fifaCode: "ESP" },
+        homePlaceholder: null,
+        awayPlaceholder: null,
+        result: null,
+      },
+    ]);
+
+    renderPoolDetailPage();
+
+    await waitFor(() => expect(screen.getByText("Family Pool")).toBeInTheDocument());
+    await userEvent.type(await screen.findByLabelText("BRA prediction"), "2");
+    await userEvent.type(await screen.findByLabelText("ESP prediction"), "1");
+    await userEvent.click(await screen.findByRole("button", { name: "Salvar" }));
+
+    await waitFor(() =>
+      expect(apiMock.submitPrediction).toHaveBeenCalledWith("pool-1", "match-1", {
+        homeScore: 2,
+        awayScore: 1,
+      }),
+    );
   });
 });
 

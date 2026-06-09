@@ -1,3 +1,9 @@
 app:
   jwt:
     secret: ${APP_JWT_SECRET:TE9DQUwtREVWLU5PTi1QUk9EVUNUSU9OLUpXVC1TRUNSRVQtQ0hBTkdFLUlOLVBST0QtMjAyNg==}
+  demo:
+    admin:
+      enabled: ${APP_DEMO_ADMIN_ENABLED:true}
+      username: ${APP_DEMO_ADMIN_USERNAME:demo-admin}
+      email: ${APP_DEMO_ADMIN_EMAIL:admin@example.com}
+      password: ${APP_DEMO_ADMIN_PASSWORD:admin12345}
