@@ -129,7 +129,7 @@ class MatchParticipantResolutionServiceTest {
     }
 
     @Test
-    void shouldRejectAlreadyResolvedMatch() {
+    void shouldUpdateAlreadyResolvedKnockoutMatch() {
         Match resolvedMatch = new Match(
                 tournament,
                 homeTeam,
@@ -139,8 +139,40 @@ class MatchParticipantResolutionServiceTest {
                 MatchStatus.SCHEDULED
         );
         setId(resolvedMatch, matchId);
+        Team newHomeTeam = team("France", "FRA", tournament);
+        Team newAwayTeam = team("Germany", "GER", tournament);
 
         when(matchRepository.findById(matchId)).thenReturn(Optional.of(resolvedMatch));
+        when(teamRepository.findById(newHomeTeam.getId())).thenReturn(Optional.of(newHomeTeam));
+        when(teamRepository.findById(newAwayTeam.getId())).thenReturn(Optional.of(newAwayTeam));
+        when(matchRepository.save(resolvedMatch)).thenReturn(resolvedMatch);
+        when(matchResultRepository.findByMatchId(matchId)).thenReturn(Optional.empty());
+
+        MatchSummaryResponse response = service.resolve(new ResolveMatchParticipantsCommand(
+                matchId,
+                newHomeTeam.getId(),
+                newAwayTeam.getId()
+        ));
+
+        assertThat(response.homeTeam().fifaCode()).isEqualTo("FRA");
+        assertThat(response.awayTeam().fifaCode()).isEqualTo("GER");
+        assertThat(response.predictionOpen()).isTrue();
+    }
+
+    @Test
+    void shouldRejectNonKnockoutMatch() {
+        Match groupStageMatch = new Match(
+                tournament,
+                homeTeam,
+                awayTeam,
+                Instant.parse("2026-06-29T16:00:00Z"),
+                "GROUP_STAGE",
+                "A",
+                MatchStatus.SCHEDULED
+        );
+        setId(groupStageMatch, matchId);
+
+        when(matchRepository.findById(matchId)).thenReturn(Optional.of(groupStageMatch));
 
         assertThatThrownBy(() -> service.resolve(new ResolveMatchParticipantsCommand(
                 matchId,

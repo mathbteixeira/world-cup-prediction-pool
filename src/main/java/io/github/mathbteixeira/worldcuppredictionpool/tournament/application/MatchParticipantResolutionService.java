@@ -44,8 +44,8 @@ public class MatchParticipantResolutionService {
 
         Match match = matchRepository.findById(command.matchId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Match not found"));
-        if (match.hasResolvedTeams()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Match participants are already resolved");
+        if (!match.isKnockoutMatch()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only knockout match teams can be updated");
         }
 
         Team homeTeam = teamRepository.findById(command.homeTeamId())

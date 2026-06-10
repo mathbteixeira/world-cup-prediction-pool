@@ -83,6 +83,10 @@ public class PredictionPool extends BaseEntity {
         return owner;
     }
 
+    public void transferOwnership(UserAccount owner) {
+        this.owner = owner;
+    }
+
     public Tournament getTournament() {
         return tournament;
     }

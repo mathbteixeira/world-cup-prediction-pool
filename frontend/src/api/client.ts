@@ -1,10 +1,12 @@
 import type {
   ApiErrorResponse,
+  AdminPoolSummary,
   CreatePoolRequest,
   LeaderboardEntry,
   ManagedParticipant,
   MatchFilters,
   MatchSummary,
+  PoolMember,
   PoolPrediction,
   PoolSummary,
   PredictionResponse,
@@ -76,6 +78,7 @@ async function parseError(response: Response) {
 function queryString(filters: MatchFilters) {
   const params = new URLSearchParams();
   if (filters.group) params.set("group", filters.group.trim());
+  if (filters.stage) params.set("stage", filters.stage.trim());
   if (filters.team) params.set("team", filters.team.trim());
   if (filters.predictableOnly) params.set("predictableOnly", "true");
   const value = params.toString();
@@ -138,6 +141,21 @@ export const api = {
     }),
   resolveParticipants: (matchId: string, body: { homeTeamId: string; awayTeamId: string }) =>
     request<MatchSummary>(`/api/v1/admin/matches/${matchId}/participants`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  listAdminPools: () => request<AdminPoolSummary[]>("/api/v1/admin/pools"),
+  deleteAdminPool: (poolId: string) => request<void>(`/api/v1/admin/pools/${poolId}`, { method: "DELETE" }),
+  listPoolMembers: (poolId: string) => request<PoolMember[]>(`/api/v1/admin/pools/${poolId}/members`),
+  addPoolMember: (poolId: string, body: { email: string }) =>
+    request<PoolMember>(`/api/v1/admin/pools/${poolId}/members`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  removePoolMember: (poolId: string, userId: string) =>
+    request<void>(`/api/v1/admin/pools/${poolId}/members/${userId}`, { method: "DELETE" }),
+  transferPoolOwnership: (poolId: string, body: { email: string }) =>
+    request<AdminPoolSummary>(`/api/v1/admin/pools/${poolId}/owner`, {
       method: "PUT",
       body: JSON.stringify(body),
     }),
