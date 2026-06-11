@@ -1,8 +1,6 @@
 package io.github.mathbteixeira.worldcuppredictionpool.finalranking.application;
 
-import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
-import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TeamRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -18,30 +16,27 @@ import java.util.stream.Collectors;
 
 /**
  * Shared helpers for the final-ranking feature: tournament team lookup, the
- * prediction deadline (the tournament's first kickoff), and podium validation.
+ * prediction deadline, and podium validation.
  * Centralised here so the prediction and scoring services stay consistent.
  */
 @Component
 public class TournamentRankingSupport {
 
-    private final TeamRepository teamRepository;
-    private final MatchRepository matchRepository;
+    static final Instant PREDICTION_DEADLINE = Instant.parse("2026-06-16T03:00:00Z");
 
-    public TournamentRankingSupport(TeamRepository teamRepository, MatchRepository matchRepository) {
+    private final TeamRepository teamRepository;
+
+    public TournamentRankingSupport(TeamRepository teamRepository) {
         this.teamRepository = teamRepository;
-        this.matchRepository = matchRepository;
     }
 
     public List<Team> teamsOf(UUID tournamentId) {
         return teamRepository.findAllByTournamentIdOrderByNameAsc(tournamentId);
     }
 
-    /** The tournament's earliest kickoff, used as the podium prediction deadline (nullable). */
+    /** The fixed podium prediction deadline. */
     public Instant predictionDeadline(UUID tournamentId) {
-        return matchRepository.findAllByTournamentIdOrderByKickoffAtAsc(tournamentId).stream()
-                .map(Match::getKickoffAt)
-                .min(Instant::compareTo)
-                .orElse(null);
+        return PREDICTION_DEADLINE;
     }
 
     /**

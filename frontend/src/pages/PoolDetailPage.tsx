@@ -66,8 +66,6 @@ const MATCH_ROUNDS: MatchRound[] = [
   "FINAL",
 ];
 
-const TOURNAMENT_PREDICTION_FRONTEND_DEADLINE = new Date("2026-06-21T00:00:00");
-
 export function PoolDetailPage() {
   const { poolId = "" } = useParams();
   const { language, t } = useLanguage();
@@ -276,7 +274,6 @@ export function PoolDetailPage() {
   const scopeLabel = pool.poolScope === "SINGLE_MATCH" ? t("singleMatchPool") : t("tournamentPool");
   const canManageParticipants = pool.poolScope === "SINGLE_MATCH" && pool.membershipRole === "OWNER";
   const hasTournamentPredictions = pool.poolScope === "TOURNAMENT";
-  const tournamentPredictionOpen = isTournamentPredictionOpen();
 
   return (
     <div className="space-y-6">
@@ -428,7 +425,6 @@ export function PoolDetailPage() {
               setFinalDraft={setFinalRankingDraft}
               topScorerDraft={topScorerDraft}
               setTopScorerDraft={setTopScorerDraft}
-              canSubmit={tournamentPredictionOpen}
               submitGroupMutation={submitGroupStandingPrediction}
               submitFinalMutation={submitFinalRankingPrediction}
               submitTopScorerMutation={submitTopScorerPrediction}
@@ -506,7 +502,6 @@ function TournamentPredictionsPanel({
   setFinalDraft,
   topScorerDraft,
   setTopScorerDraft,
-  canSubmit,
   submitGroupMutation,
   submitFinalMutation,
   submitTopScorerMutation,
@@ -521,7 +516,6 @@ function TournamentPredictionsPanel({
   setFinalDraft: Dispatch<SetStateAction<Partial<FinalRankingDraft>>>;
   topScorerDraft: Partial<TopScorerDraft>;
   setTopScorerDraft: Dispatch<SetStateAction<Partial<TopScorerDraft>>>;
-  canSubmit: boolean;
   submitGroupMutation: UseMutationResult<GroupStandingResponse, Error, { groupName: string; teamIdsByPosition: string[] }>;
   submitFinalMutation: UseMutationResult<TournamentRankingResponse, Error, TournamentRankingPicks>;
   submitTopScorerMutation: UseMutationResult<TopScorerResponse, Error, TopScorerPick>;
@@ -545,7 +539,7 @@ function TournamentPredictionsPanel({
   }
 
   function saveGroup(group: GroupStandingResponse) {
-    if (!canSubmit || !group.predictionOpen) {
+    if (!group.predictionOpen) {
       setFeedback({ type: "error", message: t("tournamentPredictionsClosed") });
       return;
     }
@@ -562,7 +556,7 @@ function TournamentPredictionsPanel({
   }
 
   function saveFinalRanking() {
-    if (!finalRanking || !canSubmit || !finalRanking.predictionOpen) {
+    if (!finalRanking || !finalRanking.predictionOpen) {
       setFeedback({ type: "error", message: t("tournamentPredictionsClosed") });
       return;
     }
@@ -583,7 +577,7 @@ function TournamentPredictionsPanel({
   }
 
   function saveTopScorer() {
-    if (!topScorer || !canSubmit || !topScorer.predictionOpen) {
+    if (!topScorer || !topScorer.predictionOpen) {
       setFeedback({ type: "error", message: t("tournamentPredictionsClosed") });
       return;
     }
@@ -601,7 +595,7 @@ function TournamentPredictionsPanel({
 
   return (
     <div className="space-y-5">
-      <Alert className={canSubmit ? "" : "border-destructive/40 bg-destructive/5 text-destructive"}>
+      <Alert>
         <AlertTitle>{t("tournamentPredictionDeadlineTitle")}</AlertTitle>
         <AlertDescription>{t("tournamentPredictionDeadlineDesc")}</AlertDescription>
       </Alert>
@@ -617,13 +611,18 @@ function TournamentPredictionsPanel({
           <div className="grid gap-4 xl:grid-cols-2">
             {orderedGroups.map((group) => {
               const picks = groupDraft(group);
-              const groupOpen = canSubmit && group.predictionOpen;
+              const groupOpen = group.predictionOpen;
               return (
                 <div key={group.groupName} className="rounded-lg border bg-white p-4 shadow-sm">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <h3 className="font-semibold">{t("group")} {group.groupName}</h3>
                     <Badge variant={groupOpen ? "success" : "muted"}>{groupOpen ? t("open") : t("closed")}</Badge>
                   </div>
+                  {group.predictionDeadline ? (
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      {t("predictionDeadline")}: {formatDateTime(group.predictionDeadline, language)}
+                    </p>
+                  ) : null}
                   <div className="grid gap-3">
                     {[0, 1, 2, 3].map((position) => (
                       <PositionSelect
@@ -656,8 +655,8 @@ function TournamentPredictionsPanel({
             <Trophy className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-lg font-semibold">{t("finalRankingPrediction")}</h2>
           </div>
-          <Badge variant={finalRanking && canSubmit && finalRanking.predictionOpen ? "success" : "muted"}>
-            {finalRanking && canSubmit && finalRanking.predictionOpen ? t("open") : t("closed")}
+          <Badge variant={finalRanking?.predictionOpen ? "success" : "muted"}>
+            {finalRanking?.predictionOpen ? t("open") : t("closed")}
           </Badge>
         </div>
         {!finalRanking ? (
@@ -669,7 +668,7 @@ function TournamentPredictionsPanel({
               teams={finalRanking.teams}
               value={finalPicks.championTeamId}
               selectedValues={Object.values(finalPicks)}
-              disabled={!canSubmit || !finalRanking.predictionOpen}
+              disabled={!finalRanking.predictionOpen}
               onChange={(teamId) => updateFinalDraft("championTeamId", teamId)}
             />
             <PositionSelect
@@ -677,7 +676,7 @@ function TournamentPredictionsPanel({
               teams={finalRanking.teams}
               value={finalPicks.runnerUpTeamId}
               selectedValues={Object.values(finalPicks)}
-              disabled={!canSubmit || !finalRanking.predictionOpen}
+              disabled={!finalRanking.predictionOpen}
               onChange={(teamId) => updateFinalDraft("runnerUpTeamId", teamId)}
             />
             <PositionSelect
@@ -685,7 +684,7 @@ function TournamentPredictionsPanel({
               teams={finalRanking.teams}
               value={finalPicks.thirdPlaceTeamId}
               selectedValues={Object.values(finalPicks)}
-              disabled={!canSubmit || !finalRanking.predictionOpen}
+              disabled={!finalRanking.predictionOpen}
               onChange={(teamId) => updateFinalDraft("thirdPlaceTeamId", teamId)}
             />
             <PositionSelect
@@ -693,14 +692,14 @@ function TournamentPredictionsPanel({
               teams={finalRanking.teams}
               value={finalPicks.fourthPlaceTeamId}
               selectedValues={Object.values(finalPicks)}
-              disabled={!canSubmit || !finalRanking.predictionOpen}
+              disabled={!finalRanking.predictionOpen}
               onChange={(teamId) => updateFinalDraft("fourthPlaceTeamId", teamId)}
             />
             <div className="md:col-span-2">
               {finalRanking.predictionSubmittedAt ? (
                 <p className="mb-3 text-xs text-muted-foreground">{t("lastSubmitted")} {formatDateTime(finalRanking.predictionSubmittedAt, language)}</p>
               ) : null}
-              <Button disabled={submitFinalMutation.isPending || !canSubmit || !finalRanking.predictionOpen} onClick={saveFinalRanking}>
+              <Button disabled={submitFinalMutation.isPending || !finalRanking.predictionOpen} onClick={saveFinalRanking}>
                 {t("saveFinalRanking")}
               </Button>
             </div>
@@ -714,8 +713,8 @@ function TournamentPredictionsPanel({
             <Trophy className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-lg font-semibold">{t("topScorerPrediction")}</h2>
           </div>
-          <Badge variant={topScorer && canSubmit && topScorer.predictionOpen ? "success" : "muted"}>
-            {topScorer && canSubmit && topScorer.predictionOpen ? t("open") : t("closed")}
+          <Badge variant={topScorer?.predictionOpen ? "success" : "muted"}>
+            {topScorer?.predictionOpen ? t("open") : t("closed")}
           </Badge>
         </div>
         {!topScorer ? (
@@ -728,7 +727,7 @@ function TournamentPredictionsPanel({
                 aria-label={t("topScorerCountry")}
                 className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                 value={topScorerPick.teamId}
-                disabled={!canSubmit || !topScorer.predictionOpen}
+                disabled={!topScorer.predictionOpen}
                 onChange={(event) => updateTopScorerDraft("teamId", event.target.value)}
               >
                 <option value="">{t("selectTeam")}</option>
@@ -744,7 +743,7 @@ function TournamentPredictionsPanel({
               <Input
                 aria-label={t("topScorerPlayer")}
                 value={topScorerPick.playerName}
-                disabled={!canSubmit || !topScorer.predictionOpen}
+                disabled={!topScorer.predictionOpen}
                 maxLength={120}
                 placeholder={t("topScorerPlayerPlaceholder")}
                 onChange={(event) => updateTopScorerDraft("playerName", event.target.value)}
@@ -756,7 +755,7 @@ function TournamentPredictionsPanel({
                 aria-label={t("topScorerGoals")}
                 className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                 value={topScorerPick.goals}
-                disabled={!canSubmit || !topScorer.predictionOpen}
+                disabled={!topScorer.predictionOpen}
                 onChange={(event) => updateTopScorerDraft("goals", event.target.value)}
               >
                 <option value="">{t("selectGoals")}</option>
@@ -771,7 +770,7 @@ function TournamentPredictionsPanel({
               {topScorer.predictionSubmittedAt ? (
                 <p className="mb-3 text-xs text-muted-foreground">{t("lastSubmitted")} {formatDateTime(topScorer.predictionSubmittedAt, language)}</p>
               ) : null}
-              <Button disabled={submitTopScorerMutation.isPending || !canSubmit || !topScorer.predictionOpen} onClick={saveTopScorer}>
+              <Button disabled={submitTopScorerMutation.isPending || !topScorer.predictionOpen} onClick={saveTopScorer}>
                 {t("saveTopScorer")}
               </Button>
             </div>
@@ -1117,10 +1116,6 @@ function ManagedParticipantsCard({
 
 function hasResolvedParticipants(match: MatchSummary) {
   return Boolean(match.homeTeam && match.awayTeam);
-}
-
-function isTournamentPredictionOpen() {
-  return new Date() < TOURNAMENT_PREDICTION_FRONTEND_DEADLINE;
 }
 
 function hasCompleteDistinctPicks(values: string[], expectedLength: number) {

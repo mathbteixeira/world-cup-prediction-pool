@@ -18,7 +18,7 @@ import java.util.UUID;
 @Component
 public class TopScorerSupport {
 
-    static final Instant PREDICTION_DEADLINE = Instant.parse("2026-06-21T00:00:00Z");
+    static final Instant PREDICTION_DEADLINE = Instant.parse("2026-06-16T03:00:00Z");
 
     private final PredictionPoolRepository predictionPoolRepository;
     private final PoolMembershipRepository poolMembershipRepository;
