@@ -78,6 +78,10 @@ public class PoolService {
     @Transactional
     public PoolSummaryResponse createPool(CreatePoolRequest request, String email) {
         UserAccount owner = getUserByEmail(email);
+        if (owner.getRole() != UserRole.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admin users can create pools");
+        }
+
         CreatePoolRequest.PoolMode mode = request.mode() == null ? CreatePoolRequest.PoolMode.TOURNAMENT : request.mode();
         if (mode == CreatePoolRequest.PoolMode.SINGLE_MATCH) {
             return createSingleMatchPool(request, owner);

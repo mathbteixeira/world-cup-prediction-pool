@@ -56,8 +56,9 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
   const poolsQuery = useQuery({ queryKey: ["pools"], queryFn: api.listPools });
-  const tournamentsQuery = useQuery({ queryKey: ["tournaments"], queryFn: api.listTournaments });
+  const tournamentsQuery = useQuery({ queryKey: ["tournaments"], queryFn: api.listTournaments, enabled: isAdmin });
   const createForm = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
     defaultValues: {
@@ -80,7 +81,7 @@ export function DashboardPage() {
   const existingMatchesQuery = useQuery({
     queryKey: ["matches", existingTournamentId, "dashboard"],
     queryFn: () => api.listMatches(existingTournamentId!, {}),
-    enabled: createMode === "SINGLE_MATCH" && matchSource === "EXISTING" && Boolean(existingTournamentId),
+    enabled: isAdmin && createMode === "SINGLE_MATCH" && matchSource === "EXISTING" && Boolean(existingTournamentId),
   });
 
   const createPool = useMutation({
@@ -216,120 +217,127 @@ export function DashboardPage() {
         </div>
 
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("createPool")}</CardTitle>
-              <CardDescription>{t("createPoolDesc")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={createForm.handleSubmit((values) => createPool.mutate(values))} className="space-y-4">
-                {createForm.formState.errors.root ? (
-                  <Alert className="border-destructive/30">
-                    <AlertDescription>{createForm.formState.errors.root.message}</AlertDescription>
-                  </Alert>
-                ) : null}
-                <FormField label={t("poolName")} error={createForm.formState.errors.name}>
-                  <Input {...createForm.register("name")} />
-                </FormField>
-                <FormField label={t("description")} error={createForm.formState.errors.description}>
-                  <Textarea {...createForm.register("description")} />
-                </FormField>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant={createMode === "TOURNAMENT" ? "default" : "outline"}
-                    onClick={() => createForm.setValue("mode", "TOURNAMENT")}
-                  >
-                    <Trophy className="h-4 w-4" />
-                    {t("tournamentPool")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={createMode === "SINGLE_MATCH" ? "default" : "outline"}
-                    onClick={() => createForm.setValue("mode", "SINGLE_MATCH")}
-                  >
-                    <CalendarClock className="h-4 w-4" />
-                    {t("singleMatchPool")}
-                  </Button>
-                </div>
-                {createMode === "SINGLE_MATCH" ? (
-                  <div className="space-y-4 rounded-md border p-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant={matchSource === "CUSTOM" ? "default" : "outline"}
-                        onClick={() => createForm.setValue("matchSource", "CUSTOM")}
-                      >
-                        {t("customMatch")}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={matchSource === "EXISTING" ? "default" : "outline"}
-                        onClick={() => createForm.setValue("matchSource", "EXISTING")}
-                      >
-                        {t("existingMatch")}
-                      </Button>
-                    </div>
-                    {matchSource === "EXISTING" ? (
-                      <div className="space-y-4">
-                        <FormField label={t("tournament")} error={createForm.formState.errors.existingTournamentId}>
-                          <select
-                            className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
-                            {...createForm.register("existingTournamentId", {
-                              onChange: () => createForm.setValue("matchId", ""),
-                            })}
-                          >
-                            <option value="">{t("selectTournament")}</option>
-                            {(tournamentsQuery.data ?? []).map((tournament) => (
-                              <option key={tournament.tournamentId} value={tournament.tournamentId}>
-                                {tournament.name} {tournament.seasonYear}
-                              </option>
-                            ))}
-                          </select>
-                        </FormField>
-                        <FormField label={t("match")} error={createForm.formState.errors.matchId}>
-                          <select
-                            className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-muted"
-                            disabled={!existingTournamentId}
-                            {...createForm.register("matchId")}
-                          >
-                            <option value="">{existingMatchesQuery.isLoading ? t("loadingMatches") : t("selectMatch")}</option>
-                            {(existingMatchesQuery.data ?? []).map((match) => (
-                              <option key={match.matchId} value={match.matchId}>
-                                {match.homeTeam?.fifaCode ?? match.homePlaceholder ?? "TBD"} vs {match.awayTeam?.fifaCode ?? match.awayPlaceholder ?? "TBD"} -{" "}
-                                {new Date(match.kickoffAt).toLocaleString()}
-                              </option>
-                            ))}
-                          </select>
-                        </FormField>
+          {isAdmin ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("createPool")}</CardTitle>
+                <CardDescription>{t("createPoolDesc")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={createForm.handleSubmit((values) => createPool.mutate(values))} className="space-y-4">
+                  {createForm.formState.errors.root ? (
+                    <Alert className="border-destructive/30">
+                      <AlertDescription>{createForm.formState.errors.root.message}</AlertDescription>
+                    </Alert>
+                  ) : null}
+                  <FormField label={t("poolName")} error={createForm.formState.errors.name}>
+                    <Input {...createForm.register("name")} />
+                  </FormField>
+                  <FormField label={t("description")} error={createForm.formState.errors.description}>
+                    <Textarea {...createForm.register("description")} />
+                  </FormField>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={createMode === "TOURNAMENT" ? "default" : "outline"}
+                      onClick={() => createForm.setValue("mode", "TOURNAMENT")}
+                    >
+                      <Trophy className="h-4 w-4" />
+                      {t("tournamentPool")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={createMode === "SINGLE_MATCH" ? "default" : "outline"}
+                      onClick={() => createForm.setValue("mode", "SINGLE_MATCH")}
+                    >
+                      <CalendarClock className="h-4 w-4" />
+                      {t("singleMatchPool")}
+                    </Button>
+                  </div>
+                  {createMode === "SINGLE_MATCH" ? (
+                    <div className="space-y-4 rounded-md border p-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          variant={matchSource === "CUSTOM" ? "default" : "outline"}
+                          onClick={() => createForm.setValue("matchSource", "CUSTOM")}
+                        >
+                          {t("customMatch")}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={matchSource === "EXISTING" ? "default" : "outline"}
+                          onClick={() => createForm.setValue("matchSource", "EXISTING")}
+                        >
+                          {t("existingMatch")}
+                        </Button>
                       </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <FormField label={t("homeTeam")} error={createForm.formState.errors.homeTeam}>
-                            <Input {...createForm.register("homeTeam")} />
+                      {matchSource === "EXISTING" ? (
+                        <div className="space-y-4">
+                          <FormField label={t("tournament")} error={createForm.formState.errors.existingTournamentId}>
+                            <select
+                              className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                              {...createForm.register("existingTournamentId", {
+                                onChange: () => createForm.setValue("matchId", ""),
+                              })}
+                            >
+                              <option value="">{t("selectTournament")}</option>
+                              {(tournamentsQuery.data ?? []).map((tournament) => (
+                                <option key={tournament.tournamentId} value={tournament.tournamentId}>
+                                  {tournament.name} {tournament.seasonYear}
+                                </option>
+                              ))}
+                            </select>
                           </FormField>
-                          <FormField label={t("awayTeam")} error={createForm.formState.errors.awayTeam}>
-                            <Input {...createForm.register("awayTeam")} />
+                          <FormField label={t("match")} error={createForm.formState.errors.matchId}>
+                            <select
+                              className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-muted"
+                              disabled={!existingTournamentId}
+                              {...createForm.register("matchId")}
+                            >
+                              <option value="">{existingMatchesQuery.isLoading ? t("loadingMatches") : t("selectMatch")}</option>
+                              {(existingMatchesQuery.data ?? []).map((match) => (
+                                <option key={match.matchId} value={match.matchId}>
+                                  {match.homeTeam?.fifaCode ?? match.homePlaceholder ?? "TBD"} vs {match.awayTeam?.fifaCode ?? match.awayPlaceholder ?? "TBD"} -{" "}
+                                  {new Date(match.kickoffAt).toLocaleString()}
+                                </option>
+                              ))}
+                            </select>
                           </FormField>
                         </div>
-                        <FormField label={t("kickoff")} error={createForm.formState.errors.kickoffAt}>
-                          <Input type="datetime-local" {...createForm.register("kickoffAt")} />
-                        </FormField>
-                        <FormField label={t("competitionLabel")} error={createForm.formState.errors.competitionLabel}>
-                          <Input {...createForm.register("competitionLabel")} />
-                        </FormField>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-                <Button className="w-full" disabled={createPool.isPending}>
-                  <Plus className="h-4 w-4" />
-                  {t("create")}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <FormField label={t("homeTeam")} error={createForm.formState.errors.homeTeam}>
+                              <Input {...createForm.register("homeTeam")} />
+                            </FormField>
+                            <FormField label={t("awayTeam")} error={createForm.formState.errors.awayTeam}>
+                              <Input {...createForm.register("awayTeam")} />
+                            </FormField>
+                          </div>
+                          <FormField label={t("kickoff")} error={createForm.formState.errors.kickoffAt}>
+                            <Input type="datetime-local" {...createForm.register("kickoffAt")} />
+                          </FormField>
+                          <FormField label={t("competitionLabel")} error={createForm.formState.errors.competitionLabel}>
+                            <Input {...createForm.register("competitionLabel")} />
+                          </FormField>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                  <Button className="w-full" disabled={createPool.isPending}>
+                    <Plus className="h-4 w-4" />
+                    {t("create")}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          ) : (
+            <Alert>
+              <AlertTitle>{t("poolCreationAdminOnly")}</AlertTitle>
+              <AlertDescription>{t("poolCreationAdminOnlyDesc")}</AlertDescription>
+            </Alert>
+          )}
 
           <Card>
             <CardHeader>

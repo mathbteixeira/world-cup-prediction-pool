@@ -89,7 +89,7 @@ class PoolServiceTest {
     void shouldCreatePoolAndRegisterOwnerMembership() {
         Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
         UUID tournamentId = UUID.randomUUID();
-        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.ADMIN);
         when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(owner));
         when(tournamentRepository.findById(tournamentId)).thenReturn(Optional.of(tournament));
         when(predictionPoolRepository.save(any(PredictionPool.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -116,7 +116,7 @@ class PoolServiceTest {
         Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);
         UUID tournamentId = UUID.randomUUID();
         setId(tournament, tournamentId);
-        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.ADMIN);
         Team home = new Team(tournament, "Brazil", "BRA");
         Team away = new Team(tournament, "Egypt", "EGY");
         Match match = new Match(
@@ -147,7 +147,7 @@ class PoolServiceTest {
 
     @Test
     void shouldCreateSingleMatchPoolWithCustomMatch() {
-        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.ADMIN);
         when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(owner));
         when(tournamentRepository.save(any(Tournament.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(teamRepository.save(any(Team.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -184,7 +184,7 @@ class PoolServiceTest {
 
     @Test
     void shouldRejectSingleMatchPoolWithoutExactlyOneMatchSource() {
-        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.ADMIN);
         when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(owner));
 
         assertThatThrownBy(() -> poolService.createPool(
@@ -198,6 +198,27 @@ class PoolServiceTest {
                     assertThat(exception.getReason()).isEqualTo("Single-match pool must reference exactly one existing or custom match");
                 });
 
+        verify(predictionPoolRepository, never()).save(any(PredictionPool.class));
+    }
+
+    @Test
+    void shouldRejectPoolCreationForNonAdminUser() {
+        UUID tournamentId = UUID.randomUUID();
+        UserAccount owner = new UserAccount("ana", "ana@example.com", "encoded", UserRole.USER);
+        when(userAccountRepository.findByEmailIgnoreCase("ana@example.com")).thenReturn(Optional.of(owner));
+
+        assertThatThrownBy(() -> poolService.createPool(
+                new CreatePoolRequest("Office Pool", "Qatar 2026", CreatePoolRequest.PoolMode.TOURNAMENT, tournamentId, null, null),
+                "ana@example.com"
+        ))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> {
+                    ResponseStatusException exception = (ResponseStatusException) error;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(exception.getReason()).isEqualTo("Only admin users can create pools");
+                });
+
+        verify(tournamentRepository, never()).findById(any(UUID.class));
         verify(predictionPoolRepository, never()).save(any(PredictionPool.class));
     }
 
