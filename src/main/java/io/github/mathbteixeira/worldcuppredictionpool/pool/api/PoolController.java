@@ -46,6 +46,7 @@ public class PoolController {
             @ApiResponse(responseCode = "200", description = "Pool created"),
             @ApiResponse(responseCode = "400", description = "Invalid pool request"),
             @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Only admin users can create pools"),
             @ApiResponse(responseCode = "404", description = "Tournament or match not found")
     })
     public PoolSummaryResponse create(@Valid @RequestBody CreatePoolRequest request, Authentication authentication) {

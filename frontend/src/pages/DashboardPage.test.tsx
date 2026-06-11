@@ -18,6 +18,10 @@ const apiMock = vi.hoisted(() => ({
   deletePool: vi.fn(),
 }));
 
+const authState = vi.hoisted(() => ({
+  user: { username: "alice", email: "alice@example.com", role: "ADMIN" },
+}));
+
 vi.mock("../api/client", () => ({
   WORLD_CUP_2026_TOURNAMENT_ID: "11111111-1111-1111-1111-111111111111",
   api: apiMock,
@@ -25,7 +29,7 @@ vi.mock("../api/client", () => ({
 
 vi.mock("../auth/AuthProvider", () => ({
   useAuth: () => ({
-    user: { username: "alice", email: "alice@example.com", role: "USER" },
+    user: authState.user,
   }),
 }));
 
@@ -38,9 +42,10 @@ describe("DashboardPage", () => {
     apiMock.listMatches.mockResolvedValue([]);
     apiMock.createPool.mockResolvedValue({ id: "created-pool" });
     apiMock.joinPool.mockResolvedValue({ id: "joined-pool" });
+    authState.user = { username: "alice", email: "alice@example.com", role: "ADMIN" };
   });
 
-  it("creates a tournament pool", async () => {
+  it("allows an admin to create a tournament pool", async () => {
     renderDashboardPage();
 
     await userEvent.type(screen.getByLabelText("Nome do bolão"), "Family Cup");
@@ -55,7 +60,27 @@ describe("DashboardPage", () => {
     });
   });
 
+  it("hides pool creation from regular users", async () => {
+    authState.user = { username: "alice", email: "alice@example.com", role: "USER" };
+
+    renderDashboardPage();
+
+    expect(await screen.findByText("Criação de bolões apenas para admins")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Nome do bolão")).not.toBeInTheDocument();
+    expect(apiMock.listTournaments).not.toHaveBeenCalled();
+  });
+
+  it("shows tournament prediction scoring details", async () => {
+    renderDashboardPage();
+
+    expect(await screen.findByText("Modelo de pontuação")).toBeInTheDocument();
+    expect(screen.getByText(/Palpites de classificação dos grupos:/)).toBeInTheDocument();
+    expect(screen.getByText(/Palpite do top 4 final:/)).toBeInTheDocument();
+    expect(screen.getByText(/Palpite de goleador:/)).toBeInTheDocument();
+  });
+
   it("joins a pool with an invite code", async () => {
+    authState.user = { username: "alice", email: "alice@example.com", role: "USER" };
     renderDashboardPage();
 
     await userEvent.type(screen.getByLabelText("Código de convite"), "abc123");
