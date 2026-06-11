@@ -66,6 +66,38 @@ export type TeamSummary = {
   fifaCode: string;
 };
 
+export type GroupStandingResponse = {
+  poolId: string;
+  tournamentId: string;
+  groupName: string;
+  teams: TeamSummary[];
+  predictionDeadline: string | null;
+  predictionOpen: boolean;
+  predictedTeamIdsByPosition: string[] | null;
+  predictionSubmittedAt: string | null;
+  officialStandingConfirmed: boolean;
+  officialTeamIdsByPosition: string[] | null;
+};
+
+export type TournamentRankingPicks = {
+  championTeamId: string;
+  runnerUpTeamId: string;
+  thirdPlaceTeamId: string;
+  fourthPlaceTeamId: string;
+};
+
+export type TournamentRankingResponse = {
+  poolId: string;
+  tournamentId: string;
+  teams: TeamSummary[];
+  predictionDeadline: string | null;
+  predictionOpen: boolean;
+  predicted: TournamentRankingPicks | null;
+  predictionSubmittedAt: string | null;
+  officialRankingConfirmed: boolean;
+  official: TournamentRankingPicks | null;
+};
+
 export type MatchResult = {
   homeScore: number;
   awayScore: number;

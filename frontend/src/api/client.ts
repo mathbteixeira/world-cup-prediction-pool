@@ -2,6 +2,7 @@ import type {
   ApiErrorResponse,
   AdminPoolSummary,
   CreatePoolRequest,
+  GroupStandingResponse,
   LeaderboardEntry,
   ManagedParticipant,
   MatchFilters,
@@ -12,6 +13,8 @@ import type {
   PredictionResponse,
   RecalculationResponse,
   TournamentSummary,
+  TournamentRankingPicks,
+  TournamentRankingResponse,
   TokenResponse,
 } from "./types";
 
@@ -107,6 +110,18 @@ export const api = {
       body: JSON.stringify(body),
     }),
   listPredictions: (poolId: string) => request<PoolPrediction[]>(`/api/v1/pools/${poolId}/predictions`),
+  listGroupStandings: (poolId: string) => request<GroupStandingResponse[]>(`/api/v1/pools/${poolId}/groups`),
+  submitGroupStandingPrediction: (poolId: string, groupName: string, teamIdsByPosition: string[]) =>
+    request<GroupStandingResponse>(`/api/v1/pools/${poolId}/groups/${groupName}/prediction`, {
+      method: "PUT",
+      body: JSON.stringify({ teamIdsByPosition }),
+    }),
+  getFinalRanking: (poolId: string) => request<TournamentRankingResponse>(`/api/v1/pools/${poolId}/final-ranking`),
+  submitFinalRankingPrediction: (poolId: string, body: TournamentRankingPicks) =>
+    request<TournamentRankingResponse>(`/api/v1/pools/${poolId}/final-ranking/prediction`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
   leaderboard: (poolId: string) => request<LeaderboardEntry[]>(`/api/v1/pools/${poolId}/leaderboard`),
   listManagedParticipants: (poolId: string) => request<ManagedParticipant[]>(`/api/v1/pools/${poolId}/managed-participants`),
   createManagedParticipant: (poolId: string, body: { name: string }) =>
