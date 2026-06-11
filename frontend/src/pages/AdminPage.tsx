@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, RefreshCw, Shield, Trash2, UserPlus } from "lucide-react";
 import { api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
-import type { AdminPoolSummary, MatchSummary, PoolMember, RecalculationResponse, TeamSummary } from "../api/types";
+import type { AdminPoolSummary, MatchSummary, PlayerSummary, PoolMember, RecalculationResponse, TeamSummary, TopScorerRecalculationResponse } from "../api/types";
 import { useAuth } from "../auth/AuthProvider";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { Badge } from "../components/ui/badge";
@@ -29,6 +29,12 @@ type ResultDraft = {
   finalResult: boolean;
 };
 
+type TopScorerResultDraft = {
+  teamId: string;
+  playerId: string;
+  goals: string;
+};
+
 export function AdminPage() {
   const { user } = useAuth();
   const { language, t } = useLanguage();
@@ -42,11 +48,13 @@ export function AdminPage() {
     awayPenaltyScore: "",
     finalResult: true,
   });
+  const [topScorerDraft, setTopScorerDraft] = useState<TopScorerResultDraft>({ teamId: "", playerId: "", goals: "" });
   const [selectedPoolId, setSelectedPoolId] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [recalculation, setRecalculation] = useState<RecalculationResponse | null>(null);
+  const [topScorerRecalculation, setTopScorerRecalculation] = useState<TopScorerRecalculationResponse | null>(null);
 
   const matchesQuery = useQuery({
     queryKey: ["matches", WORLD_CUP_2026_TOURNAMENT_ID, "admin"],
@@ -62,6 +70,11 @@ export function AdminPage() {
     queryKey: ["admin-pool-members", selectedPoolId],
     queryFn: () => api.listPoolMembers(selectedPoolId),
     enabled: user?.role === "ADMIN" && Boolean(selectedPoolId),
+  });
+  const topScorerPlayersQuery = useQuery({
+    queryKey: ["players", WORLD_CUP_2026_TOURNAMENT_ID, topScorerDraft.teamId, "admin"],
+    queryFn: () => api.listPlayers(WORLD_CUP_2026_TOURNAMENT_ID, topScorerDraft.teamId),
+    enabled: user?.role === "ADMIN" && Boolean(topScorerDraft.teamId),
   });
 
   useEffect(() => {
@@ -98,6 +111,18 @@ export function AdminPage() {
       setRecalculation(response);
       setFeedback(t("adminResultUpdated"));
       await queryClient.invalidateQueries({ queryKey: ["matches", WORLD_CUP_2026_TOURNAMENT_ID] });
+    },
+    onError: (error) => setFeedback(error instanceof Error ? error.message : t("adminActionFailed")),
+  });
+  const confirmTopScorer = useMutation({
+    mutationFn: () =>
+      api.confirmTopScorer(WORLD_CUP_2026_TOURNAMENT_ID, {
+        playerId: topScorerDraft.playerId,
+        goals: Number(topScorerDraft.goals),
+      }),
+    onSuccess: (response) => {
+      setTopScorerRecalculation(response);
+      setFeedback(t("topScorerResultUpdated"));
     },
     onError: (error) => setFeedback(error instanceof Error ? error.message : t("adminActionFailed")),
   });
@@ -240,6 +265,58 @@ export function AdminPage() {
             {recalculation ? (
               <p className="mt-3 text-sm text-muted-foreground">
                 {t("scoredPredictions")}: {recalculation.scoredPredictions} · {t("affectedPools")}: {recalculation.affectedPools}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("topScorerResultUpdate")}</CardTitle>
+            <CardDescription>{t("topScorerResultUpdateDesc")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              className="grid gap-3 lg:grid-cols-[1fr_1fr_0.7fr_auto] lg:items-end"
+              onSubmit={(event) => {
+                event.preventDefault();
+                confirmTopScorer.mutate();
+              }}
+            >
+              <AdminSelect
+                label={t("topScorerCountry")}
+                value={topScorerDraft.teamId}
+                onChange={(value) => setTopScorerDraft({ teamId: value, playerId: "", goals: topScorerDraft.goals })}
+              >
+                <TeamOptions teams={teams} label={t("selectTeam")} />
+              </AdminSelect>
+              <AdminSelect
+                label={t("topScorerPlayer")}
+                value={topScorerDraft.playerId}
+                onChange={(value) => setTopScorerDraft({ ...topScorerDraft, playerId: value })}
+              >
+                <PlayerOptions players={topScorerPlayersQuery.data ?? []} label={t("selectPlayer")} />
+              </AdminSelect>
+              <AdminSelect
+                label={t("topScorerGoals")}
+                value={topScorerDraft.goals}
+                onChange={(value) => setTopScorerDraft({ ...topScorerDraft, goals: value })}
+              >
+                <option value="">{t("selectGoals")}</option>
+                {Array.from({ length: 15 }, (_, index) => index + 1).map((goals) => (
+                  <option key={goals} value={goals}>
+                    {goals}
+                  </option>
+                ))}
+              </AdminSelect>
+              <Button disabled={confirmTopScorer.isPending || !topScorerDraft.playerId || !topScorerDraft.goals}>
+                <RefreshCw className="h-4 w-4" />
+                {t("confirmTopScorer")}
+              </Button>
+            </form>
+            {topScorerRecalculation ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t("scoredPredictions")}: {topScorerRecalculation.scoredPredictions} · {t("affectedPools")}: {topScorerRecalculation.affectedPools}
               </p>
             ) : null}
           </CardContent>
@@ -445,6 +522,19 @@ function TeamOptions({ teams, label }: { teams: TeamSummary[]; label: string }) 
       {teams.map((team) => (
         <option key={team.id} value={team.id}>
           {flagForFifaCode(team.fifaCode)} {team.fifaCode} - {team.name}
+        </option>
+      ))}
+    </>
+  );
+}
+
+function PlayerOptions({ players, label }: { players: PlayerSummary[]; label: string }) {
+  return (
+    <>
+      <option value="">{label}</option>
+      {players.map((player) => (
+        <option key={player.id} value={player.id}>
+          #{player.rosterNumber} {player.name}
         </option>
       ))}
     </>

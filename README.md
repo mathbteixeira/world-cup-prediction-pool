@@ -173,6 +173,9 @@ Tournament-pool extras:
 
 - group-stage final standings: **10** points per team in the exact predicted group position
 - final tournament ranking: champion **20**, runner-up **18**, third place **15**, fourth place **15**
+- tournament top scorer: correct player **20**, plus **10** extra points if the predicted goal total also matches; predicting only the goal total without the correct player awards **0**
+
+The current player seed creates 26 placeholder players per seeded national team so the top-scorer flow can be tested before official 2026 squads are announced. Replace or extend the player seed with official squad names when they are available.
 
 ### Example contract
 
@@ -224,6 +227,7 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `DELETE /api/v1/pools/{poolId}/managed-participants/{participantId}`
 - `GET /api/v1/tournaments`
 - `GET /api/v1/tournaments/{tournamentId}/matches`
+- `GET /api/v1/tournaments/{tournamentId}/teams/{teamId}/players`
 - `PUT /api/v1/pools/{poolId}/matches/{matchId}/prediction`
 - `PUT /api/v1/pools/{poolId}/managed-participants/{participantId}/prediction`
 - `GET /api/v1/pools/{poolId}/predictions`
@@ -231,10 +235,13 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `PUT /api/v1/pools/{poolId}/groups/{groupName}/prediction`
 - `GET /api/v1/pools/{poolId}/final-ranking`
 - `PUT /api/v1/pools/{poolId}/final-ranking/prediction`
+- `GET /api/v1/pools/{poolId}/top-scorer`
+- `PUT /api/v1/pools/{poolId}/top-scorer/prediction`
 - `PUT /api/v1/admin/matches/{matchId}/participants`
 - `PUT /api/v1/admin/matches/{matchId}/result`
 - `PUT /api/v1/admin/tournaments/{tournamentId}/groups/{groupName}/standings`
 - `PUT /api/v1/admin/tournaments/{tournamentId}/final-ranking`
+- `PUT /api/v1/admin/tournaments/{tournamentId}/top-scorer`
 - `GET /api/v1/pools/{poolId}/leaderboard`
 
 Swagger UI: `http://localhost:8080/swagger-ui/index.html`

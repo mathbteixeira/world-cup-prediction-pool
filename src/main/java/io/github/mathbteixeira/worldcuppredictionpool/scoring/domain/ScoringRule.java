@@ -45,6 +45,12 @@ public class ScoringRule extends BaseEntity {
     private int fourthPlacePoints;
 
     @Column(nullable = false)
+    private int topScorerPlayerPoints;
+
+    @Column(nullable = false)
+    private int topScorerGoalsPoints;
+
+    @Column(nullable = false)
     private int ruleVersion;
 
     @Column(nullable = false)
@@ -59,7 +65,7 @@ public class ScoringRule extends BaseEntity {
                        int goalDifferenceBonusPoints,
                        int ruleVersion,
                        boolean active) {
-        this(tournament, exactScorePoints, outcomePoints, goalDifferenceBonusPoints, 10, 20, 18, 15, 15, ruleVersion, active);
+        this(tournament, exactScorePoints, outcomePoints, goalDifferenceBonusPoints, 10, 20, 18, 15, 15, 20, 10, ruleVersion, active);
     }
 
     public ScoringRule(Tournament tournament,
@@ -73,6 +79,23 @@ public class ScoringRule extends BaseEntity {
                        int fourthPlacePoints,
                        int ruleVersion,
                        boolean active) {
+        this(tournament, exactScorePoints, outcomePoints, goalDifferenceBonusPoints, groupPositionPoints, championPoints,
+                runnerUpPoints, thirdPlacePoints, fourthPlacePoints, 20, 10, ruleVersion, active);
+    }
+
+    public ScoringRule(Tournament tournament,
+                       int exactScorePoints,
+                       int outcomePoints,
+                       int goalDifferenceBonusPoints,
+                       int groupPositionPoints,
+                       int championPoints,
+                       int runnerUpPoints,
+                       int thirdPlacePoints,
+                       int fourthPlacePoints,
+                       int topScorerPlayerPoints,
+                       int topScorerGoalsPoints,
+                       int ruleVersion,
+                       boolean active) {
         this.tournament = tournament;
         this.exactScorePoints = exactScorePoints;
         this.outcomePoints = outcomePoints;
@@ -82,6 +105,8 @@ public class ScoringRule extends BaseEntity {
         this.runnerUpPoints = runnerUpPoints;
         this.thirdPlacePoints = thirdPlacePoints;
         this.fourthPlacePoints = fourthPlacePoints;
+        this.topScorerPlayerPoints = topScorerPlayerPoints;
+        this.topScorerGoalsPoints = topScorerGoalsPoints;
         this.ruleVersion = ruleVersion;
         this.active = active;
     }
@@ -120,6 +145,14 @@ public class ScoringRule extends BaseEntity {
 
     public int getFourthPlacePoints() {
         return fourthPlacePoints;
+    }
+
+    public int getTopScorerPlayerPoints() {
+        return topScorerPlayerPoints;
+    }
+
+    public int getTopScorerGoalsPoints() {
+        return topScorerGoalsPoints;
     }
 
     public int getRuleVersion() {

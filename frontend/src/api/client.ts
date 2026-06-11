@@ -7,6 +7,7 @@ import type {
   ManagedParticipant,
   MatchFilters,
   MatchSummary,
+  PlayerSummary,
   PoolMember,
   PoolPrediction,
   PoolSummary,
@@ -15,6 +16,9 @@ import type {
   TournamentSummary,
   TournamentRankingPicks,
   TournamentRankingResponse,
+  TopScorerPick,
+  TopScorerRecalculationResponse,
+  TopScorerResponse,
   TokenResponse,
 } from "./types";
 
@@ -104,6 +108,8 @@ export const api = {
   listTournaments: () => request<TournamentSummary[]>("/api/v1/tournaments"),
   listMatches: (tournamentId: string, filters: MatchFilters = {}) =>
     request<MatchSummary[]>(`/api/v1/tournaments/${tournamentId}/matches${queryString(filters)}`),
+  listPlayers: (tournamentId: string, teamId: string) =>
+    request<PlayerSummary[]>(`/api/v1/tournaments/${tournamentId}/teams/${teamId}/players`),
   submitPrediction: (poolId: string, matchId: string, body: { homeScore: number; awayScore: number }) =>
     request<PredictionResponse>(`/api/v1/pools/${poolId}/matches/${matchId}/prediction`, {
       method: "PUT",
@@ -119,6 +125,17 @@ export const api = {
   getFinalRanking: (poolId: string) => request<TournamentRankingResponse>(`/api/v1/pools/${poolId}/final-ranking`),
   submitFinalRankingPrediction: (poolId: string, body: TournamentRankingPicks) =>
     request<TournamentRankingResponse>(`/api/v1/pools/${poolId}/final-ranking/prediction`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  getTopScorer: (poolId: string) => request<TopScorerResponse>(`/api/v1/pools/${poolId}/top-scorer`),
+  submitTopScorerPrediction: (poolId: string, body: TopScorerPick) =>
+    request<TopScorerResponse>(`/api/v1/pools/${poolId}/top-scorer/prediction`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  confirmTopScorer: (tournamentId: string, body: { playerId: string; goals: number }) =>
+    request<TopScorerRecalculationResponse>(`/api/v1/admin/tournaments/${tournamentId}/top-scorer`, {
       method: "PUT",
       body: JSON.stringify(body),
     }),

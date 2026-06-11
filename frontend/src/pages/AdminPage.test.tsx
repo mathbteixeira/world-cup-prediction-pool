@@ -10,8 +10,10 @@ import { AdminPage } from "./AdminPage";
 
 const apiMock = vi.hoisted(() => ({
   listMatches: vi.fn(),
+  listPlayers: vi.fn(),
   resolveParticipants: vi.fn(),
   upsertResult: vi.fn(),
+  confirmTopScorer: vi.fn(),
   listAdminPools: vi.fn(),
   deleteAdminPool: vi.fn(),
   listPoolMembers: vi.fn(),
@@ -68,6 +70,11 @@ describe("AdminPage", () => {
     ]);
     apiMock.resolveParticipants.mockResolvedValue({});
     apiMock.upsertResult.mockResolvedValue({ scoredPredictions: 0, affectedPools: 0 });
+    apiMock.listPlayers.mockResolvedValue([
+      { id: "player-1", teamId: "team-1", name: "Brazil Player 01", rosterNumber: 1 },
+      { id: "player-2", teamId: "team-1", name: "Brazil Player 02", rosterNumber: 2 },
+    ]);
+    apiMock.confirmTopScorer.mockResolvedValue({ scoredPredictions: 1, affectedPools: 1 });
     apiMock.listAdminPools.mockResolvedValue([
       {
         id: "pool-1",
@@ -118,6 +125,27 @@ describe("AdminPage", () => {
 
     await waitFor(() => expect(apiMock.addPoolMember).toHaveBeenCalledWith("pool-1", { email: "new@example.com" }));
     await waitFor(() => expect(apiMock.transferPoolOwnership).toHaveBeenCalledWith("pool-1", { email: "member@example.com" }));
+  });
+
+  it("allows admins to confirm the tournament top scorer", async () => {
+    renderAdminPage();
+
+    await screen.findByText("Atualização de goleador");
+    await waitFor(() => expect((screen.getByLabelText("País do goleador") as HTMLSelectElement).options.length).toBeGreaterThan(1));
+    await userEvent.selectOptions(screen.getByLabelText("País do goleador"), "team-1");
+    await waitFor(() =>
+      expect(apiMock.listPlayers).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111", "team-1"),
+    );
+    await userEvent.selectOptions(screen.getByLabelText("Jogador goleador"), "player-1");
+    await userEvent.selectOptions(screen.getByLabelText("Gols previstos"), "7");
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar goleador" }));
+
+    await waitFor(() =>
+      expect(apiMock.confirmTopScorer).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111", {
+        playerId: "player-1",
+        goals: 7,
+      }),
+    );
   });
 
   it("hides admin actions from non-admin users", () => {

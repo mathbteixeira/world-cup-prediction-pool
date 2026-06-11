@@ -10,9 +10,12 @@ import type {
   GroupStandingResponse,
   ManagedParticipant,
   MatchSummary,
+  PlayerSummary,
   PoolPrediction,
   PredictionResponse,
   TeamSummary,
+  TopScorerPick,
+  TopScorerResponse,
   TournamentRankingPicks,
   TournamentRankingResponse,
 } from "../api/types";
@@ -32,6 +35,11 @@ type ScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
 type ManagedScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
 type GroupStandingDraft = Record<string, string[]>;
 type FinalRankingDraft = Record<keyof TournamentRankingPicks, string>;
+type TopScorerDraft = {
+  teamId: string;
+  playerId: string;
+  goals: string;
+};
 type MatchSortDirection = "asc" | "desc";
 type MatchRound = "GROUP_STAGE" | "ROUND_OF_32" | "ROUND_OF_16" | "QUARTER_FINAL" | "SEMI_FINAL" | "THIRD_PLACE" | "FINAL";
 type MatchFiltersState = {
@@ -76,6 +84,7 @@ export function PoolDetailPage() {
   const [managedDrafts, setManagedDrafts] = useState<ManagedScoreDraft>({});
   const [groupStandingDrafts, setGroupStandingDrafts] = useState<GroupStandingDraft>({});
   const [finalRankingDraft, setFinalRankingDraft] = useState<Partial<FinalRankingDraft>>({});
+  const [topScorerDraft, setTopScorerDraft] = useState<Partial<TopScorerDraft>>({});
   const [feedback, setFeedback] = useState<FeedbackMessage>(null);
 
   const poolQuery = useQuery({ queryKey: ["pool", poolId], queryFn: () => api.getPool(poolId), enabled: Boolean(poolId) });
@@ -110,6 +119,17 @@ export function PoolDetailPage() {
     queryKey: ["final-ranking", poolId],
     queryFn: () => api.getFinalRanking(poolId),
     enabled: Boolean(poolId) && poolQuery.data?.poolScope === "TOURNAMENT",
+  });
+  const topScorerQuery = useQuery({
+    queryKey: ["top-scorer", poolId],
+    queryFn: () => api.getTopScorer(poolId),
+    enabled: Boolean(poolId) && poolQuery.data?.poolScope === "TOURNAMENT",
+  });
+  const selectedTopScorerTeamId = topScorerDraft.teamId ?? topScorerQuery.data?.predicted?.teamId ?? "";
+  const topScorerPlayersQuery = useQuery({
+    queryKey: ["players", tournamentId, selectedTopScorerTeamId],
+    queryFn: () => api.listPlayers(tournamentId!, selectedTopScorerTeamId),
+    enabled: Boolean(tournamentId) && Boolean(selectedTopScorerTeamId),
   });
 
   const myPredictions = useMemo(() => {
@@ -190,6 +210,14 @@ export function PoolDetailPage() {
     onSuccess: async () => {
       setFeedback({ type: "success", message: t("predictionSaved") });
       await queryClient.invalidateQueries({ queryKey: ["final-ranking", poolId] });
+    },
+    onError: (error) => setFeedback({ type: "error", message: predictionErrorMessage(error, t) }),
+  });
+  const submitTopScorerPrediction = useMutation({
+    mutationFn: (pick: TopScorerPick) => api.submitTopScorerPrediction(poolId, pick),
+    onSuccess: async () => {
+      setFeedback({ type: "success", message: t("predictionSaved") });
+      await queryClient.invalidateQueries({ queryKey: ["top-scorer", poolId] });
     },
     onError: (error) => setFeedback({ type: "error", message: predictionErrorMessage(error, t) }),
   });
@@ -400,13 +428,18 @@ export function PoolDetailPage() {
             <TournamentPredictionsPanel
               groupStandings={groupStandingsQuery.data ?? []}
               finalRanking={finalRankingQuery.data}
+              topScorer={topScorerQuery.data}
+              topScorerPlayers={topScorerPlayersQuery.data ?? []}
               groupDrafts={groupStandingDrafts}
               setGroupDrafts={setGroupStandingDrafts}
               finalDraft={finalRankingDraft}
               setFinalDraft={setFinalRankingDraft}
+              topScorerDraft={topScorerDraft}
+              setTopScorerDraft={setTopScorerDraft}
               canSubmit={tournamentPredictionOpen}
               submitGroupMutation={submitGroupStandingPrediction}
               submitFinalMutation={submitFinalRankingPrediction}
+              submitTopScorerMutation={submitTopScorerPrediction}
               setFeedback={setFeedback}
             />
           </TabsContent>
@@ -474,29 +507,40 @@ export function PoolDetailPage() {
 function TournamentPredictionsPanel({
   groupStandings,
   finalRanking,
+  topScorer,
+  topScorerPlayers,
   groupDrafts,
   setGroupDrafts,
   finalDraft,
   setFinalDraft,
+  topScorerDraft,
+  setTopScorerDraft,
   canSubmit,
   submitGroupMutation,
   submitFinalMutation,
+  submitTopScorerMutation,
   setFeedback,
 }: {
   groupStandings: GroupStandingResponse[];
   finalRanking: TournamentRankingResponse | undefined;
+  topScorer: TopScorerResponse | undefined;
+  topScorerPlayers: PlayerSummary[];
   groupDrafts: GroupStandingDraft;
   setGroupDrafts: Dispatch<SetStateAction<GroupStandingDraft>>;
   finalDraft: Partial<FinalRankingDraft>;
   setFinalDraft: Dispatch<SetStateAction<Partial<FinalRankingDraft>>>;
+  topScorerDraft: Partial<TopScorerDraft>;
+  setTopScorerDraft: Dispatch<SetStateAction<Partial<TopScorerDraft>>>;
   canSubmit: boolean;
   submitGroupMutation: UseMutationResult<GroupStandingResponse, Error, { groupName: string; teamIdsByPosition: string[] }>;
   submitFinalMutation: UseMutationResult<TournamentRankingResponse, Error, TournamentRankingPicks>;
+  submitTopScorerMutation: UseMutationResult<TopScorerResponse, Error, TopScorerPick>;
   setFeedback: Dispatch<SetStateAction<FeedbackMessage>>;
 }) {
   const { language, t } = useLanguage();
   const orderedGroups = [...groupStandings].sort((a, b) => a.groupName.localeCompare(b.groupName));
   const finalPicks = finalRankingDraftValues(finalRanking, finalDraft);
+  const topScorerPick = topScorerDraftValues(topScorer, topScorerDraft);
 
   function groupDraft(group: GroupStandingResponse) {
     return groupDrafts[group.groupName] ?? group.predictedTeamIdsByPosition ?? ["", "", "", ""];
@@ -539,6 +583,31 @@ function TournamentPredictionsPanel({
       return;
     }
     submitFinalMutation.mutate(picks);
+  }
+
+  function updateTopScorerDraft(field: keyof TopScorerDraft, value: string) {
+    setTopScorerDraft((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === "teamId" ? { playerId: "" } : {}),
+    }));
+  }
+
+  function saveTopScorer() {
+    if (!topScorer || !canSubmit || !topScorer.predictionOpen) {
+      setFeedback({ type: "error", message: t("tournamentPredictionsClosed") });
+      return;
+    }
+    const goals = Number(topScorerPick.goals);
+    if (!topScorerPick.teamId || !topScorerPick.playerId || !Number.isInteger(goals) || goals < 1 || goals > 15) {
+      setFeedback({ type: "error", message: t("selectTopScorer") });
+      return;
+    }
+    submitTopScorerMutation.mutate({
+      teamId: topScorerPick.teamId,
+      playerId: topScorerPick.playerId,
+      goals,
+    });
   }
 
   return (
@@ -644,6 +713,83 @@ function TournamentPredictionsPanel({
               ) : null}
               <Button disabled={submitFinalMutation.isPending || !canSubmit || !finalRanking.predictionOpen} onClick={saveFinalRanking}>
                 {t("saveFinalRanking")}
+              </Button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">{t("topScorerPrediction")}</h2>
+          </div>
+          <Badge variant={topScorer && canSubmit && topScorer.predictionOpen ? "success" : "muted"}>
+            {topScorer && canSubmit && topScorer.predictionOpen ? t("open") : t("closed")}
+          </Badge>
+        </div>
+        {!topScorer ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("loadingPool")}</p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium">{t("topScorerCountry")}</span>
+              <select
+                aria-label={t("topScorerCountry")}
+                className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                value={topScorerPick.teamId}
+                disabled={!canSubmit || !topScorer.predictionOpen}
+                onChange={(event) => updateTopScorerDraft("teamId", event.target.value)}
+              >
+                <option value="">{t("selectTeam")}</option>
+                {topScorer.teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {flagForFifaCode(team.fifaCode)} {team.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium">{t("topScorerPlayer")}</span>
+              <select
+                aria-label={t("topScorerPlayer")}
+                className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                value={topScorerPick.playerId}
+                disabled={!canSubmit || !topScorer.predictionOpen || !topScorerPick.teamId}
+                onChange={(event) => updateTopScorerDraft("playerId", event.target.value)}
+              >
+                <option value="">{t("selectPlayer")}</option>
+                {topScorerPlayers.map((player) => (
+                  <option key={player.id} value={player.id}>
+                    #{player.rosterNumber} {player.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium">{t("topScorerGoals")}</span>
+              <select
+                aria-label={t("topScorerGoals")}
+                className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                value={topScorerPick.goals}
+                disabled={!canSubmit || !topScorer.predictionOpen}
+                onChange={(event) => updateTopScorerDraft("goals", event.target.value)}
+              >
+                <option value="">{t("selectGoals")}</option>
+                {Array.from({ length: 15 }, (_, index) => index + 1).map((goals) => (
+                  <option key={goals} value={String(goals)}>
+                    {goals}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="md:col-span-3">
+              {topScorer.predictionSubmittedAt ? (
+                <p className="mb-3 text-xs text-muted-foreground">{t("lastSubmitted")} {formatDateTime(topScorer.predictionSubmittedAt, language)}</p>
+              ) : null}
+              <Button disabled={submitTopScorerMutation.isPending || !canSubmit || !topScorer.predictionOpen} onClick={saveTopScorer}>
+                {t("saveTopScorer")}
               </Button>
             </div>
           </div>
@@ -1008,6 +1154,14 @@ function finalRankingDraftValues(
     runnerUpTeamId: draft.runnerUpTeamId ?? finalRanking?.predicted?.runnerUpTeamId ?? "",
     thirdPlaceTeamId: draft.thirdPlaceTeamId ?? finalRanking?.predicted?.thirdPlaceTeamId ?? "",
     fourthPlaceTeamId: draft.fourthPlaceTeamId ?? finalRanking?.predicted?.fourthPlaceTeamId ?? "",
+  };
+}
+
+function topScorerDraftValues(topScorer: TopScorerResponse | undefined, draft: Partial<TopScorerDraft>): TopScorerDraft {
+  return {
+    teamId: draft.teamId ?? topScorer?.predicted?.teamId ?? "",
+    playerId: draft.playerId ?? topScorer?.predicted?.playerId ?? "",
+    goals: draft.goals ?? (topScorer?.predicted?.goals ? String(topScorer.predicted.goals) : ""),
   };
 }
 

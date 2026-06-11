@@ -26,7 +26,9 @@ public class ScoringRuleResolver {
                         rule.getChampionPoints(),
                         rule.getRunnerUpPoints(),
                         rule.getThirdPlacePoints(),
-                        rule.getFourthPlacePoints()))
+                        rule.getFourthPlacePoints(),
+                        rule.getTopScorerPlayerPoints(),
+                        rule.getTopScorerGoalsPoints()))
                 .orElseGet(ScoringRuleDefinition::defaultV1);
     }
 }
