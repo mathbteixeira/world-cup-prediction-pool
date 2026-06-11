@@ -91,7 +91,7 @@ describe("PoolDetailPage", () => {
           { id: "team-3", name: "France", fifaCode: "FRA" },
           { id: "team-4", name: "Japan", fifaCode: "JPN" },
         ],
-        predictionDeadline: "2026-06-20T23:59:59Z",
+        predictionDeadline: "2026-06-12T03:00:00Z",
         predictionOpen: true,
         predictedTeamIdsByPosition: null,
         predictionSubmittedAt: null,
@@ -238,6 +238,9 @@ describe("PoolDetailPage", () => {
 
     await waitFor(() => expect(screen.getByText("Family Pool")).toBeInTheDocument());
     await userEvent.click(await screen.findByRole("tab", { name: "Palpites do torneio" }));
+
+    expect(screen.getByText(/Prazo do palpite:/)).toBeInTheDocument();
+    expect(screen.getByText(/12 de jun\., 00:00 BRT/)).toBeInTheDocument();
 
     await userEvent.selectOptions(await screen.findByLabelText("1º lugar"), "team-1");
     await userEvent.selectOptions(screen.getByLabelText("2º lugar"), "team-2");

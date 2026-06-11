@@ -624,6 +624,11 @@ function TournamentPredictionsPanel({
                     <h3 className="font-semibold">{t("group")} {group.groupName}</h3>
                     <Badge variant={groupOpen ? "success" : "muted"}>{groupOpen ? t("open") : t("closed")}</Badge>
                   </div>
+                  {group.predictionDeadline ? (
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      {t("predictionDeadline")}: {formatDateTime(group.predictionDeadline, language)}
+                    </p>
+                  ) : null}
                   <div className="grid gap-3">
                     {[0, 1, 2, 3].map((position) => (
                       <PositionSelect

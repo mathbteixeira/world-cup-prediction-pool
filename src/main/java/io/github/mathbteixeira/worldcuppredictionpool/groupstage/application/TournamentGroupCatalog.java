@@ -23,6 +23,8 @@ import java.util.UUID;
 public class TournamentGroupCatalog {
 
     private static final String GROUP_STAGE = "GROUP_STAGE";
+    private static final String GROUP_A = "A";
+    private static final Instant GROUP_A_PREDICTION_DEADLINE = Instant.parse("2026-06-12T03:00:00Z");
 
     private final MatchRepository matchRepository;
 
@@ -57,7 +59,10 @@ public class TournamentGroupCatalog {
                     List<Team> teams = entry.getValue().teams().values().stream()
                             .sorted(Comparator.comparing(Team::getName, String.CASE_INSENSITIVE_ORDER))
                             .toList();
-                    groups.put(entry.getKey(), new GroupInfo(entry.getKey(), teams, entry.getValue().earliest()[0]));
+                    groups.put(entry.getKey(), new GroupInfo(
+                            entry.getKey(),
+                            teams,
+                            predictionDeadlineFor(entry.getKey(), entry.getValue().earliest()[0])));
                 });
         return groups;
     }
@@ -72,13 +77,20 @@ public class TournamentGroupCatalog {
         }
     }
 
+    private Instant predictionDeadlineFor(String groupName, Instant earliestKickoff) {
+        if (GROUP_A.equalsIgnoreCase(groupName)) {
+            return GROUP_A_PREDICTION_DEADLINE;
+        }
+        return earliestKickoff;
+    }
+
     /**
      * A single group's composition.
      *
      * @param groupName       the single-letter group name
      * @param teams           the group's teams, sorted by name
-     * @param earliestKickoff the earliest kickoff among the group's matches, used
-     *                        as the prediction deadline (nullable if unknown)
+     * @param earliestKickoff the group's prediction deadline, normally the earliest
+     *                        kickoff among the group's matches (nullable if unknown)
      */
     public record GroupInfo(String groupName, List<Team> teams, Instant earliestKickoff) {
 
