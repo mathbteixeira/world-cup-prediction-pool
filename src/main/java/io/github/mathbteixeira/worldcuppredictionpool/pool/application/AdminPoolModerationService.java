@@ -32,6 +32,7 @@ public class AdminPoolModerationService {
     private final ScoreEventRepository scoreEventRepository;
     private final PredictionCurrentScoreRepository predictionCurrentScoreRepository;
     private final LeaderboardEntryRepository leaderboardEntryRepository;
+    private final List<PoolDataCleanupContributor> poolDataCleanupContributors;
 
     public AdminPoolModerationService(PredictionPoolRepository predictionPoolRepository,
                                       PoolMembershipRepository poolMembershipRepository,
@@ -39,7 +40,8 @@ public class AdminPoolModerationService {
                                       PredictionRepository predictionRepository,
                                       ScoreEventRepository scoreEventRepository,
                                       PredictionCurrentScoreRepository predictionCurrentScoreRepository,
-                                      LeaderboardEntryRepository leaderboardEntryRepository) {
+                                      LeaderboardEntryRepository leaderboardEntryRepository,
+                                      List<PoolDataCleanupContributor> poolDataCleanupContributors) {
         this.predictionPoolRepository = predictionPoolRepository;
         this.poolMembershipRepository = poolMembershipRepository;
         this.userAccountRepository = userAccountRepository;
@@ -47,6 +49,7 @@ public class AdminPoolModerationService {
         this.scoreEventRepository = scoreEventRepository;
         this.predictionCurrentScoreRepository = predictionCurrentScoreRepository;
         this.leaderboardEntryRepository = leaderboardEntryRepository;
+        this.poolDataCleanupContributors = poolDataCleanupContributors == null ? List.of() : poolDataCleanupContributors;
     }
 
     @Transactional(readOnly = true)
@@ -93,6 +96,7 @@ public class AdminPoolModerationService {
             scoreEventRepository.deleteByPredictionIdIn(predictionIds);
             predictionCurrentScoreRepository.deleteByPredictionIdIn(predictionIds);
         }
+        poolDataCleanupContributors.forEach(contributor -> contributor.deleteUserPoolData(poolId, user.getId()));
         leaderboardEntryRepository.deleteByPoolIdAndUserId(poolId, user.getId());
         predictionRepository.deleteByPoolIdAndUserId(poolId, user.getId());
         poolMembershipRepository.deleteByPoolIdAndUserId(poolId, user.getId());

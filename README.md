@@ -161,11 +161,18 @@ Scoring logic is isolated from controllers/repositories in `scoring.engine`:
 
 ### Current rules (v1)
 
+Match predictions:
+
 - exact score: **7**
 - correct winner/draw: **3**
 - correct goal difference bonus: **2** (when outcome is correct and exact score is not)
 - wrong prediction: **0**
 - no prediction: **0**
+
+Tournament-pool extras:
+
+- group-stage final standings: **10** points per team in the exact predicted group position
+- final tournament ranking: champion **20**, runner-up **18**, third place **15**, fourth place **15**
 
 ### Example contract
 
@@ -220,8 +227,14 @@ Implemented in `MatchResultScoringService` with a transactional boundary:
 - `PUT /api/v1/pools/{poolId}/matches/{matchId}/prediction`
 - `PUT /api/v1/pools/{poolId}/managed-participants/{participantId}/prediction`
 - `GET /api/v1/pools/{poolId}/predictions`
+- `GET /api/v1/pools/{poolId}/groups`
+- `PUT /api/v1/pools/{poolId}/groups/{groupName}/prediction`
+- `GET /api/v1/pools/{poolId}/final-ranking`
+- `PUT /api/v1/pools/{poolId}/final-ranking/prediction`
 - `PUT /api/v1/admin/matches/{matchId}/participants`
 - `PUT /api/v1/admin/matches/{matchId}/result`
+- `PUT /api/v1/admin/tournaments/{tournamentId}/groups/{groupName}/standings`
+- `PUT /api/v1/admin/tournaments/{tournamentId}/final-ranking`
 - `GET /api/v1/pools/{poolId}/leaderboard`
 
 Swagger UI: `http://localhost:8080/swagger-ui/index.html`

@@ -21,7 +21,12 @@ public class ScoringRuleResolver {
                         rule.getRuleVersion(),
                         rule.getExactScorePoints(),
                         rule.getOutcomePoints(),
-                        rule.getGoalDifferenceBonusPoints()))
+                        rule.getGoalDifferenceBonusPoints(),
+                        rule.getGroupPositionPoints(),
+                        rule.getChampionPoints(),
+                        rule.getRunnerUpPoints(),
+                        rule.getThirdPlacePoints(),
+                        rule.getFourthPlacePoints()))
                 .orElseGet(ScoringRuleDefinition::defaultV1);
     }
 }

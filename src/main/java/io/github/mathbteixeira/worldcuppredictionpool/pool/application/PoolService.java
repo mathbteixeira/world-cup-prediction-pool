@@ -47,6 +47,7 @@ public class PoolService {
     private final MatchRepository matchRepository;
     private final TeamRepository teamRepository;
     private final UserAccountRepository userAccountRepository;
+    private final List<PoolDataCleanupContributor> poolDataCleanupContributors;
 
     public PoolService(PredictionPoolRepository predictionPoolRepository,
                        PoolMembershipRepository poolMembershipRepository,
@@ -58,7 +59,8 @@ public class PoolService {
                        TournamentRepository tournamentRepository,
                        MatchRepository matchRepository,
                        TeamRepository teamRepository,
-                       UserAccountRepository userAccountRepository) {
+                       UserAccountRepository userAccountRepository,
+                       List<PoolDataCleanupContributor> poolDataCleanupContributors) {
         this.predictionPoolRepository = predictionPoolRepository;
         this.poolMembershipRepository = poolMembershipRepository;
         this.managedParticipantRepository = managedParticipantRepository;
@@ -70,6 +72,7 @@ public class PoolService {
         this.matchRepository = matchRepository;
         this.teamRepository = teamRepository;
         this.userAccountRepository = userAccountRepository;
+        this.poolDataCleanupContributors = poolDataCleanupContributors == null ? List.of() : poolDataCleanupContributors;
     }
 
     @Transactional
@@ -226,6 +229,7 @@ public class PoolService {
 
     private void deletePoolData(UUID poolId, PredictionPool pool) {
         leaderboardEntryRepository.deleteByPoolId(poolId);
+        poolDataCleanupContributors.forEach(contributor -> contributor.deletePoolData(poolId));
         scoreEventRepository.deleteByPoolId(poolId);
         predictionCurrentScoreRepository.deleteByPoolId(poolId);
         predictionRepository.deleteByPoolId(poolId);
