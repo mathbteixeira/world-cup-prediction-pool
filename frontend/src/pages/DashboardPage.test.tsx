@@ -70,6 +70,15 @@ describe("DashboardPage", () => {
     expect(apiMock.listTournaments).not.toHaveBeenCalled();
   });
 
+  it("shows tournament prediction scoring details", async () => {
+    renderDashboardPage();
+
+    expect(await screen.findByText("Modelo de pontuação")).toBeInTheDocument();
+    expect(screen.getByText(/Palpites de classificação dos grupos:/)).toBeInTheDocument();
+    expect(screen.getByText(/Palpite do top 4 final:/)).toBeInTheDocument();
+    expect(screen.getByText(/Palpite de goleador:/)).toBeInTheDocument();
+  });
+
   it("joins a pool with an invite code", async () => {
     authState.user = { username: "alice", email: "alice@example.com", role: "USER" };
     renderDashboardPage();

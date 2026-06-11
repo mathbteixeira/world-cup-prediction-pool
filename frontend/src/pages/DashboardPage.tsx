@@ -364,9 +364,14 @@ export function DashboardPage() {
 
           <Alert>
             <AlertTitle>{t("scoringModel")}</AlertTitle>
-            <AlertDescription>
-              {t("scoringModelDesc")}
-            </AlertDescription>
+            <div className="text-muted-foreground">
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>{t("scoringModelMatchPrediction")}</li>
+                <li>{t("scoringModelGroupStanding")}</li>
+                <li>{t("scoringModelFinalRanking")}</li>
+                <li>{t("scoringModelTopScorer")}</li>
+              </ul>
+            </div>
           </Alert>
         </div>
       </section>
