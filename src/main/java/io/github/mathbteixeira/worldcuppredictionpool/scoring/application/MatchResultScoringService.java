@@ -1,20 +1,13 @@
 package io.github.mathbteixeira.worldcuppredictionpool.scoring.application;
 
-import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.ManagedParticipant;
-import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PoolMembership;
-import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
-import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.ManagedParticipantRepository;
-import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.domain.Prediction;
 import io.github.mathbteixeira.worldcuppredictionpool.prediction.persistence.PredictionRepository;
-import io.github.mathbteixeira.worldcuppredictionpool.scoring.domain.LeaderboardEntry;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.domain.PredictionCurrentScore;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.engine.MatchScoreInput;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.engine.PredictionScoreInput;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.engine.PredictionScoringEngine;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.engine.ScoreBreakdown;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.engine.ScoringRuleDefinition;
-import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.LeaderboardEntryRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.PredictionCurrentScoreRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence.ScoreEventRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Match;
@@ -32,12 +25,8 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -50,9 +39,7 @@ public class MatchResultScoringService {
     private final PredictionRepository predictionRepository;
     private final ScoreEventRepository scoreEventRepository;
     private final PredictionCurrentScoreRepository predictionCurrentScoreRepository;
-    private final LeaderboardEntryRepository leaderboardEntryRepository;
-    private final PoolMembershipRepository poolMembershipRepository;
-    private final ManagedParticipantRepository managedParticipantRepository;
+    private final PoolLeaderboardRecalculationService poolLeaderboardRecalculationService;
     private final PredictionScoringEngine predictionScoringEngine;
     private final ScoringRuleResolver scoringRuleResolver;
     private final Clock clock;
@@ -62,9 +49,7 @@ public class MatchResultScoringService {
                                      PredictionRepository predictionRepository,
                                      ScoreEventRepository scoreEventRepository,
                                      PredictionCurrentScoreRepository predictionCurrentScoreRepository,
-                                     LeaderboardEntryRepository leaderboardEntryRepository,
-                                     PoolMembershipRepository poolMembershipRepository,
-                                     ManagedParticipantRepository managedParticipantRepository,
+                                     PoolLeaderboardRecalculationService poolLeaderboardRecalculationService,
                                      PredictionScoringEngine predictionScoringEngine,
                                      ScoringRuleResolver scoringRuleResolver,
                                      Clock clock) {
@@ -73,9 +58,7 @@ public class MatchResultScoringService {
         this.predictionRepository = predictionRepository;
         this.scoreEventRepository = scoreEventRepository;
         this.predictionCurrentScoreRepository = predictionCurrentScoreRepository;
-        this.leaderboardEntryRepository = leaderboardEntryRepository;
-        this.poolMembershipRepository = poolMembershipRepository;
-        this.managedParticipantRepository = managedParticipantRepository;
+        this.poolLeaderboardRecalculationService = poolLeaderboardRecalculationService;
         this.predictionScoringEngine = predictionScoringEngine;
         this.scoringRuleResolver = scoringRuleResolver;
         this.clock = clock;
@@ -162,7 +145,7 @@ public class MatchResultScoringService {
                 .collect(Collectors.toSet());
 
         if (!affectedPools.isEmpty()) {
-            rebuildLeaderboard(new ArrayList<>(affectedPools), now);
+            poolLeaderboardRecalculationService.rebuild(new ArrayList<>(affectedPools), now);
         }
 
         return new RecalculationResult(
@@ -172,86 +155,6 @@ public class MatchResultScoringService {
                 affectedPools.size(),
                 insertedEvents == 0
         );
-    }
-
-    private void rebuildLeaderboard(List<UUID> poolIds, Instant now) {
-        leaderboardEntryRepository.deleteByPoolIdIn(poolIds);
-
-        List<PoolMembership> memberships = poolMembershipRepository.findAllByPoolIdIn(poolIds);
-        List<ManagedParticipant> managedParticipants = managedParticipantRepository.findAllByPoolIdIn(poolIds);
-        Map<UUID, PredictionPool> poolsById = memberships.stream()
-                .collect(Collectors.toMap(membership -> membership.getPool().getId(), PoolMembership::getPool, (first, ignored) -> first));
-        managedParticipants.forEach(participant -> poolsById.putIfAbsent(participant.getPool().getId(), participant.getPool()));
-        Map<UUID, PoolMembership> membershipsByUserId = memberships.stream()
-                .collect(Collectors.toMap(membership -> membership.getUser().getId(), membership -> membership, (first, ignored) -> first));
-        Map<UUID, ManagedParticipant> managedParticipantsById = managedParticipants.stream()
-                .collect(Collectors.toMap(ManagedParticipant::getId, participant -> participant));
-
-        Map<UUID, Map<ParticipantKey, Integer>> totalsByPoolAndParticipant = new LinkedHashMap<>();
-        for (PoolMembership membership : memberships) {
-            totalsByPoolAndParticipant
-                    .computeIfAbsent(membership.getPool().getId(), ignored -> new LinkedHashMap<>())
-                    .putIfAbsent(ParticipantKey.user(membership.getUser().getId()), 0);
-        }
-        for (ManagedParticipant participant : managedParticipants) {
-            totalsByPoolAndParticipant
-                    .computeIfAbsent(participant.getPool().getId(), ignored -> new LinkedHashMap<>())
-                    .putIfAbsent(ParticipantKey.managed(participant.getId()), 0);
-        }
-
-        for (PredictionCurrentScoreRepository.PoolUserTotalProjection aggregate : predictionCurrentScoreRepository.aggregateTotalsByPoolAndUser(poolIds)) {
-            totalsByPoolAndParticipant
-                    .computeIfAbsent(aggregate.getPoolId(), ignored -> new LinkedHashMap<>())
-                    .put(ParticipantKey.user(aggregate.getUserId()), Math.toIntExact(Objects.requireNonNullElse(aggregate.getTotalPoints(), 0L)));
-        }
-        for (PredictionCurrentScoreRepository.PoolManagedParticipantTotalProjection aggregate : predictionCurrentScoreRepository.aggregateTotalsByPoolAndManagedParticipant(poolIds)) {
-            totalsByPoolAndParticipant
-                    .computeIfAbsent(aggregate.getPoolId(), ignored -> new LinkedHashMap<>())
-                    .put(ParticipantKey.managed(aggregate.getManagedParticipantId()), Math.toIntExact(Objects.requireNonNullElse(aggregate.getTotalPoints(), 0L)));
-        }
-
-        List<LeaderboardEntry> rebuilt = new ArrayList<>();
-        for (Map.Entry<UUID, Map<ParticipantKey, Integer>> poolEntry : totalsByPoolAndParticipant.entrySet()) {
-            List<Map.Entry<ParticipantKey, Integer>> ranking = poolEntry.getValue().entrySet().stream()
-                    .sorted(Comparator
-                            .comparing(Map.Entry<ParticipantKey, Integer>::getValue, Comparator.reverseOrder())
-                            .thenComparing(entry -> entry.getKey().sortValue()))
-                    .toList();
-
-            int rank = 1;
-            Integer previousTotal = null;
-            for (int index = 0; index < ranking.size(); index++) {
-                Map.Entry<ParticipantKey, Integer> participantTotal = ranking.get(index);
-                if (previousTotal != null && !previousTotal.equals(participantTotal.getValue())) {
-                    rank = index + 1;
-                }
-                previousTotal = participantTotal.getValue();
-
-                ParticipantKey participantKey = participantTotal.getKey();
-                PredictionPool poolReference = poolsById.get(poolEntry.getKey());
-                if (participantKey.managed()) {
-                    rebuilt.add(new LeaderboardEntry(
-                            poolReference,
-                            managedParticipantsById.get(participantKey.id()),
-                            participantTotal.getValue(),
-                            rank,
-                            now
-                    ));
-                } else {
-                    rebuilt.add(new LeaderboardEntry(
-                            poolReference,
-                            membershipsByUserId.get(participantKey.id()).getUser(),
-                            participantTotal.getValue(),
-                            rank,
-                            now
-                    ));
-                }
-            }
-        }
-
-        if (!rebuilt.isEmpty()) {
-            leaderboardEntryRepository.saveAll(rebuilt);
-        }
     }
 
     private PredictionCurrentScore createCurrentScore(Prediction prediction,
@@ -281,20 +184,6 @@ public class MatchResultScoringService {
                 checksum,
                 now
         );
-    }
-
-    private record ParticipantKey(UUID id, boolean managed) {
-        static ParticipantKey user(UUID id) {
-            return new ParticipantKey(id, false);
-        }
-
-        static ParticipantKey managed(UUID id) {
-            return new ParticipantKey(id, true);
-        }
-
-        String sortValue() {
-            return (managed ? "managed:" : "user:") + id;
-        }
     }
 
     private String checksumFor(UpsertMatchResultCommand command) {

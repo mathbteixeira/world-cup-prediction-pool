@@ -75,7 +75,8 @@ class AdminPoolModerationServiceTest {
                 predictionRepository,
                 scoreEventRepository,
                 predictionCurrentScoreRepository,
-                leaderboardEntryRepository
+                leaderboardEntryRepository,
+                List.of()
         );
 
         Tournament tournament = new Tournament("World Cup", "world-cup-2026", "2026", TournamentStatus.OPEN);

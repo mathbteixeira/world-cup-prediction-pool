@@ -90,4 +90,44 @@ describe("api client", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:8080/api/v1/pools/pool-1");
     expect(fetchMock.mock.calls[0][1]?.method).toBe("DELETE");
   });
+
+  it("submits tournament-wide group and final ranking predictions", async () => {
+    configureApiClient({ getToken: () => "abc", onUnauthorized: vi.fn() });
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    await api.listGroupStandings("pool-1");
+    await api.submitGroupStandingPrediction("pool-1", "A", ["team-1", "team-2", "team-3", "team-4"]);
+    await api.getFinalRanking("pool-1");
+    await api.submitFinalRankingPrediction("pool-1", {
+      championTeamId: "team-1",
+      runnerUpTeamId: "team-2",
+      thirdPlaceTeamId: "team-3",
+      fourthPlaceTeamId: "team-4",
+    });
+    await api.getTopScorer("pool-1");
+    await api.submitTopScorerPrediction("pool-1", { teamId: "team-1", playerName: "Vinicius Junior", goals: 7 });
+    await api.listAdminTopScorerPredictions("tournament-1");
+    await api.validateTopScorerPrediction("tournament-1", "prediction-1", { playerCorrect: true, goalsCorrect: true });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:8080/api/v1/pools/pool-1/groups");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://localhost:8080/api/v1/pools/pool-1/groups/A/prediction");
+    expect(fetchMock.mock.calls[1][1]?.body).toBe(JSON.stringify({ teamIdsByPosition: ["team-1", "team-2", "team-3", "team-4"] }));
+    expect(fetchMock.mock.calls[2][0]).toBe("http://localhost:8080/api/v1/pools/pool-1/final-ranking");
+    expect(fetchMock.mock.calls[3][0]).toBe("http://localhost:8080/api/v1/pools/pool-1/final-ranking/prediction");
+    expect(fetchMock.mock.calls[3][1]?.method).toBe("PUT");
+    expect(fetchMock.mock.calls[4][0]).toBe("http://localhost:8080/api/v1/pools/pool-1/top-scorer");
+    expect(fetchMock.mock.calls[5][0]).toBe("http://localhost:8080/api/v1/pools/pool-1/top-scorer/prediction");
+    expect(fetchMock.mock.calls[5][1]?.body).toBe(JSON.stringify({ teamId: "team-1", playerName: "Vinicius Junior", goals: 7 }));
+    expect(fetchMock.mock.calls[6][0]).toBe("http://localhost:8080/api/v1/admin/tournaments/tournament-1/top-scorer/predictions");
+    expect(fetchMock.mock.calls[7][0]).toBe("http://localhost:8080/api/v1/admin/tournaments/tournament-1/top-scorer/predictions/prediction-1/validation");
+    expect(fetchMock.mock.calls[7][1]?.body).toBe(JSON.stringify({ playerCorrect: true, goalsCorrect: true }));
+  });
 });

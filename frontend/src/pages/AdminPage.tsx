@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, RefreshCw, Shield, Trash2, UserPlus } from "lucide-react";
 import { api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
-import type { AdminPoolSummary, MatchSummary, PoolMember, RecalculationResponse, TeamSummary } from "../api/types";
+import type { AdminPoolSummary, AdminTopScorerPrediction, MatchSummary, PoolMember, RecalculationResponse, TeamSummary, TopScorerRecalculationResponse } from "../api/types";
 import { useAuth } from "../auth/AuthProvider";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { Badge } from "../components/ui/badge";
@@ -47,6 +47,7 @@ export function AdminPage() {
   const [ownerEmail, setOwnerEmail] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [recalculation, setRecalculation] = useState<RecalculationResponse | null>(null);
+  const [topScorerRecalculation, setTopScorerRecalculation] = useState<TopScorerRecalculationResponse | null>(null);
 
   const matchesQuery = useQuery({
     queryKey: ["matches", WORLD_CUP_2026_TOURNAMENT_ID, "admin"],
@@ -62,6 +63,11 @@ export function AdminPage() {
     queryKey: ["admin-pool-members", selectedPoolId],
     queryFn: () => api.listPoolMembers(selectedPoolId),
     enabled: user?.role === "ADMIN" && Boolean(selectedPoolId),
+  });
+  const topScorerPredictionsQuery = useQuery({
+    queryKey: ["admin-top-scorer-predictions", WORLD_CUP_2026_TOURNAMENT_ID],
+    queryFn: () => api.listAdminTopScorerPredictions(WORLD_CUP_2026_TOURNAMENT_ID),
+    enabled: user?.role === "ADMIN",
   });
 
   useEffect(() => {
@@ -98,6 +104,16 @@ export function AdminPage() {
       setRecalculation(response);
       setFeedback(t("adminResultUpdated"));
       await queryClient.invalidateQueries({ queryKey: ["matches", WORLD_CUP_2026_TOURNAMENT_ID] });
+    },
+    onError: (error) => setFeedback(error instanceof Error ? error.message : t("adminActionFailed")),
+  });
+  const validateTopScorer = useMutation({
+    mutationFn: ({ predictionId, playerCorrect, goalsCorrect }: { predictionId: string; playerCorrect: boolean; goalsCorrect: boolean }) =>
+      api.validateTopScorerPrediction(WORLD_CUP_2026_TOURNAMENT_ID, predictionId, { playerCorrect, goalsCorrect }),
+    onSuccess: async (response) => {
+      setTopScorerRecalculation(response);
+      setFeedback(t("topScorerResultUpdated"));
+      await queryClient.invalidateQueries({ queryKey: ["admin-top-scorer-predictions", WORLD_CUP_2026_TOURNAMENT_ID] });
     },
     onError: (error) => setFeedback(error instanceof Error ? error.message : t("adminActionFailed")),
   });
@@ -240,6 +256,25 @@ export function AdminPage() {
             {recalculation ? (
               <p className="mt-3 text-sm text-muted-foreground">
                 {t("scoredPredictions")}: {recalculation.scoredPredictions} · {t("affectedPools")}: {recalculation.affectedPools}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("topScorerResultUpdate")}</CardTitle>
+            <CardDescription>{t("topScorerResultUpdateDesc")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TopScorerValidationTable
+              predictions={topScorerPredictionsQuery.data ?? []}
+              pending={validateTopScorer.isPending}
+              onValidate={(predictionId, playerCorrect, goalsCorrect) => validateTopScorer.mutate({ predictionId, playerCorrect, goalsCorrect })}
+            />
+            {topScorerRecalculation ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t("scoredPredictions")}: {topScorerRecalculation.scoredPredictions} · {t("affectedPools")}: {topScorerRecalculation.affectedPools}
               </p>
             ) : null}
           </CardContent>
@@ -405,6 +440,69 @@ function PoolMembersPanel({
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+function TopScorerValidationTable({
+  predictions,
+  pending,
+  onValidate,
+}: {
+  predictions: AdminTopScorerPrediction[];
+  pending: boolean;
+  onValidate: (predictionId: string, playerCorrect: boolean, goalsCorrect: boolean) => void;
+}) {
+  const { t } = useLanguage();
+  if (predictions.length === 0) {
+    return <p className="text-sm text-muted-foreground">{t("noTopScorerPredictions")}</p>;
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{t("poolName")}</TableHead>
+          <TableHead>{t("user")}</TableHead>
+          <TableHead>{t("topScorerPrediction")}</TableHead>
+          <TableHead>{t("points")}</TableHead>
+          <TableHead>{t("validation")}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {predictions.map((prediction) => (
+          <TableRow key={prediction.predictionId}>
+            <TableCell>{prediction.poolName}</TableCell>
+            <TableCell>
+              <div className="font-medium">{prediction.username}</div>
+              <div className="text-xs text-muted-foreground">{prediction.email}</div>
+            </TableCell>
+            <TableCell>
+              <div className="font-medium">
+                {flagForFifaCode(prediction.team.fifaCode)} {prediction.playerName}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {prediction.team.fifaCode} · {prediction.predictedGoals} {t("topScorerGoals").toLowerCase()}
+              </div>
+            </TableCell>
+            <TableCell>{prediction.pointsAwarded ?? "-"}</TableCell>
+            <TableCell>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => onValidate(prediction.predictionId, true, true)}>
+                  {t("validateTopScorerAndGoals")}
+                </Button>
+                <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => onValidate(prediction.predictionId, true, false)}>
+                  {t("validateTopScorerOnly")}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => onValidate(prediction.predictionId, false, false)}>
+                  {t("markIncorrect")}
+                </Button>
+                {prediction.validated ? <Badge variant="secondary">{t("validated")}</Badge> : null}
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 

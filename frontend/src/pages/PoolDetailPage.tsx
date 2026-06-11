@@ -4,9 +4,20 @@ import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
-import { ArrowLeft, ArrowUpDown, CheckCircle2, Clipboard, Filter, Trash2, TriangleAlert, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, CheckCircle2, Clipboard, Filter, ListOrdered, Trash2, TriangleAlert, Trophy, UserPlus } from "lucide-react";
 import { ApiError, api, WORLD_CUP_2026_TOURNAMENT_ID } from "../api/client";
-import type { ManagedParticipant, MatchSummary, PoolPrediction, PredictionResponse, TeamSummary } from "../api/types";
+import type {
+  GroupStandingResponse,
+  ManagedParticipant,
+  MatchSummary,
+  PoolPrediction,
+  PredictionResponse,
+  TeamSummary,
+  TopScorerPick,
+  TopScorerResponse,
+  TournamentRankingPicks,
+  TournamentRankingResponse,
+} from "../api/types";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -21,6 +32,13 @@ import { formatDateTime } from "../lib/utils";
 
 type ScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
 type ManagedScoreDraft = Record<string, { homeScore: string; awayScore: string }>;
+type GroupStandingDraft = Record<string, string[]>;
+type FinalRankingDraft = Record<keyof TournamentRankingPicks, string>;
+type TopScorerDraft = {
+  teamId: string;
+  playerName: string;
+  goals: string;
+};
 type MatchSortDirection = "asc" | "desc";
 type MatchRound = "GROUP_STAGE" | "ROUND_OF_32" | "ROUND_OF_16" | "QUARTER_FINAL" | "SEMI_FINAL" | "THIRD_PLACE" | "FINAL";
 type MatchFiltersState = {
@@ -48,6 +66,8 @@ const MATCH_ROUNDS: MatchRound[] = [
   "FINAL",
 ];
 
+const TOURNAMENT_PREDICTION_FRONTEND_DEADLINE = new Date("2026-06-21T00:00:00");
+
 export function PoolDetailPage() {
   const { poolId = "" } = useParams();
   const { language, t } = useLanguage();
@@ -61,6 +81,9 @@ export function PoolDetailPage() {
   });
   const [drafts, setDrafts] = useState<ScoreDraft>({});
   const [managedDrafts, setManagedDrafts] = useState<ManagedScoreDraft>({});
+  const [groupStandingDrafts, setGroupStandingDrafts] = useState<GroupStandingDraft>({});
+  const [finalRankingDraft, setFinalRankingDraft] = useState<Partial<FinalRankingDraft>>({});
+  const [topScorerDraft, setTopScorerDraft] = useState<Partial<TopScorerDraft>>({});
   const [feedback, setFeedback] = useState<FeedbackMessage>(null);
 
   const poolQuery = useQuery({ queryKey: ["pool", poolId], queryFn: () => api.getPool(poolId), enabled: Boolean(poolId) });
@@ -85,6 +108,21 @@ export function PoolDetailPage() {
     queryKey: ["managed-participants", poolId],
     queryFn: () => api.listManagedParticipants(poolId),
     enabled: Boolean(poolId) && poolQuery.data?.poolScope === "SINGLE_MATCH" && poolQuery.data?.membershipRole === "OWNER",
+  });
+  const groupStandingsQuery = useQuery({
+    queryKey: ["group-standings", poolId],
+    queryFn: () => api.listGroupStandings(poolId),
+    enabled: Boolean(poolId) && poolQuery.data?.poolScope === "TOURNAMENT",
+  });
+  const finalRankingQuery = useQuery({
+    queryKey: ["final-ranking", poolId],
+    queryFn: () => api.getFinalRanking(poolId),
+    enabled: Boolean(poolId) && poolQuery.data?.poolScope === "TOURNAMENT",
+  });
+  const topScorerQuery = useQuery({
+    queryKey: ["top-scorer", poolId],
+    queryFn: () => api.getTopScorer(poolId),
+    enabled: Boolean(poolId) && poolQuery.data?.poolScope === "TOURNAMENT",
   });
 
   const myPredictions = useMemo(() => {
@@ -151,6 +189,31 @@ export function PoolDetailPage() {
     },
     onError: (error) => setFeedback({ type: "error", message: predictionErrorMessage(error, t) }),
   });
+  const submitGroupStandingPrediction = useMutation({
+    mutationFn: ({ groupName, teamIdsByPosition }: { groupName: string; teamIdsByPosition: string[] }) =>
+      api.submitGroupStandingPrediction(poolId, groupName, teamIdsByPosition),
+    onSuccess: async () => {
+      setFeedback({ type: "success", message: t("predictionSaved") });
+      await queryClient.invalidateQueries({ queryKey: ["group-standings", poolId] });
+    },
+    onError: (error) => setFeedback({ type: "error", message: predictionErrorMessage(error, t) }),
+  });
+  const submitFinalRankingPrediction = useMutation({
+    mutationFn: (picks: TournamentRankingPicks) => api.submitFinalRankingPrediction(poolId, picks),
+    onSuccess: async () => {
+      setFeedback({ type: "success", message: t("predictionSaved") });
+      await queryClient.invalidateQueries({ queryKey: ["final-ranking", poolId] });
+    },
+    onError: (error) => setFeedback({ type: "error", message: predictionErrorMessage(error, t) }),
+  });
+  const submitTopScorerPrediction = useMutation({
+    mutationFn: (pick: TopScorerPick) => api.submitTopScorerPrediction(poolId, pick),
+    onSuccess: async () => {
+      setFeedback({ type: "success", message: t("predictionSaved") });
+      await queryClient.invalidateQueries({ queryKey: ["top-scorer", poolId] });
+    },
+    onError: (error) => setFeedback({ type: "error", message: predictionErrorMessage(error, t) }),
+  });
 
   const allMatches = useMemo(() => {
     const matches = allMatchesQuery.data ?? [];
@@ -212,6 +275,8 @@ export function PoolDetailPage() {
   const tournamentName = pool.tournamentId === WORLD_CUP_2026_TOURNAMENT_ID ? t("worldCup2026") : pool.tournamentId.slice(0, 8);
   const scopeLabel = pool.poolScope === "SINGLE_MATCH" ? t("singleMatchPool") : t("tournamentPool");
   const canManageParticipants = pool.poolScope === "SINGLE_MATCH" && pool.membershipRole === "OWNER";
+  const hasTournamentPredictions = pool.poolScope === "TOURNAMENT";
+  const tournamentPredictionOpen = isTournamentPredictionOpen();
 
   return (
     <div className="space-y-6">
@@ -243,6 +308,7 @@ export function PoolDetailPage() {
       <Tabs defaultValue="matches">
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
           <TabsTrigger value="matches">{t("matches")}</TabsTrigger>
+          {hasTournamentPredictions ? <TabsTrigger value="tournament-predictions">{t("tournamentPredictions")}</TabsTrigger> : null}
           <TabsTrigger value="predictions">{t("predictions")}</TabsTrigger>
           <TabsTrigger value="leaderboard">{t("leaderboard")}</TabsTrigger>
           {canManageParticipants ? <TabsTrigger value="managed">{t("managedParticipants")}</TabsTrigger> : null}
@@ -350,6 +416,27 @@ export function PoolDetailPage() {
           <PredictionsTable predictions={predictionsQuery.data ?? []} />
         </TabsContent>
 
+        {hasTournamentPredictions ? (
+          <TabsContent value="tournament-predictions">
+            <TournamentPredictionsPanel
+              groupStandings={groupStandingsQuery.data ?? []}
+              finalRanking={finalRankingQuery.data}
+              topScorer={topScorerQuery.data}
+              groupDrafts={groupStandingDrafts}
+              setGroupDrafts={setGroupStandingDrafts}
+              finalDraft={finalRankingDraft}
+              setFinalDraft={setFinalRankingDraft}
+              topScorerDraft={topScorerDraft}
+              setTopScorerDraft={setTopScorerDraft}
+              canSubmit={tournamentPredictionOpen}
+              submitGroupMutation={submitGroupStandingPrediction}
+              submitFinalMutation={submitFinalRankingPrediction}
+              submitTopScorerMutation={submitTopScorerPrediction}
+              setFeedback={setFeedback}
+            />
+          </TabsContent>
+        ) : null}
+
         <TabsContent value="leaderboard">
           <Card>
             <CardHeader>
@@ -406,6 +493,331 @@ export function PoolDetailPage() {
 
       </Tabs>
     </div>
+  );
+}
+
+function TournamentPredictionsPanel({
+  groupStandings,
+  finalRanking,
+  topScorer,
+  groupDrafts,
+  setGroupDrafts,
+  finalDraft,
+  setFinalDraft,
+  topScorerDraft,
+  setTopScorerDraft,
+  canSubmit,
+  submitGroupMutation,
+  submitFinalMutation,
+  submitTopScorerMutation,
+  setFeedback,
+}: {
+  groupStandings: GroupStandingResponse[];
+  finalRanking: TournamentRankingResponse | undefined;
+  topScorer: TopScorerResponse | undefined;
+  groupDrafts: GroupStandingDraft;
+  setGroupDrafts: Dispatch<SetStateAction<GroupStandingDraft>>;
+  finalDraft: Partial<FinalRankingDraft>;
+  setFinalDraft: Dispatch<SetStateAction<Partial<FinalRankingDraft>>>;
+  topScorerDraft: Partial<TopScorerDraft>;
+  setTopScorerDraft: Dispatch<SetStateAction<Partial<TopScorerDraft>>>;
+  canSubmit: boolean;
+  submitGroupMutation: UseMutationResult<GroupStandingResponse, Error, { groupName: string; teamIdsByPosition: string[] }>;
+  submitFinalMutation: UseMutationResult<TournamentRankingResponse, Error, TournamentRankingPicks>;
+  submitTopScorerMutation: UseMutationResult<TopScorerResponse, Error, TopScorerPick>;
+  setFeedback: Dispatch<SetStateAction<FeedbackMessage>>;
+}) {
+  const { language, t } = useLanguage();
+  const orderedGroups = [...groupStandings].sort((a, b) => a.groupName.localeCompare(b.groupName));
+  const finalPicks = finalRankingDraftValues(finalRanking, finalDraft);
+  const topScorerPick = topScorerDraftValues(topScorer, topScorerDraft);
+
+  function groupDraft(group: GroupStandingResponse) {
+    return groupDrafts[group.groupName] ?? group.predictedTeamIdsByPosition ?? ["", "", "", ""];
+  }
+
+  function updateGroupDraft(groupName: string, position: number, teamId: string) {
+    setGroupDrafts((current) => {
+      const next = [...(current[groupName] ?? groupStandings.find((group) => group.groupName === groupName)?.predictedTeamIdsByPosition ?? ["", "", "", ""])];
+      next[position] = teamId;
+      return { ...current, [groupName]: next };
+    });
+  }
+
+  function saveGroup(group: GroupStandingResponse) {
+    if (!canSubmit || !group.predictionOpen) {
+      setFeedback({ type: "error", message: t("tournamentPredictionsClosed") });
+      return;
+    }
+    const picks = groupDraft(group);
+    if (!hasCompleteDistinctPicks(picks, 4)) {
+      setFeedback({ type: "error", message: t("selectDistinctTeams") });
+      return;
+    }
+    submitGroupMutation.mutate({ groupName: group.groupName, teamIdsByPosition: picks });
+  }
+
+  function updateFinalDraft(field: keyof TournamentRankingPicks, teamId: string) {
+    setFinalDraft((current) => ({ ...current, [field]: teamId }));
+  }
+
+  function saveFinalRanking() {
+    if (!finalRanking || !canSubmit || !finalRanking.predictionOpen) {
+      setFeedback({ type: "error", message: t("tournamentPredictionsClosed") });
+      return;
+    }
+    const picks = finalRankingDraftValues(finalRanking, finalDraft);
+    const values = Object.values(picks);
+    if (!hasCompleteDistinctPicks(values, 4)) {
+      setFeedback({ type: "error", message: t("selectDistinctTeams") });
+      return;
+    }
+    submitFinalMutation.mutate(picks);
+  }
+
+  function updateTopScorerDraft(field: keyof TopScorerDraft, value: string) {
+    setTopScorerDraft((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function saveTopScorer() {
+    if (!topScorer || !canSubmit || !topScorer.predictionOpen) {
+      setFeedback({ type: "error", message: t("tournamentPredictionsClosed") });
+      return;
+    }
+    const goals = Number(topScorerPick.goals);
+    if (!topScorerPick.teamId || !topScorerPick.playerName.trim() || !Number.isInteger(goals) || goals < 1 || goals > 15) {
+      setFeedback({ type: "error", message: t("selectTopScorer") });
+      return;
+    }
+    submitTopScorerMutation.mutate({
+      teamId: topScorerPick.teamId,
+      playerName: topScorerPick.playerName.trim(),
+      goals,
+    });
+  }
+
+  return (
+    <div className="space-y-5">
+      <Alert className={canSubmit ? "" : "border-destructive/40 bg-destructive/5 text-destructive"}>
+        <AlertTitle>{t("tournamentPredictionDeadlineTitle")}</AlertTitle>
+        <AlertDescription>{t("tournamentPredictionDeadlineDesc")}</AlertDescription>
+      </Alert>
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <ListOrdered className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">{t("groupStandingPredictions")}</h2>
+        </div>
+        {orderedGroups.length === 0 ? (
+          <p className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">{t("noGroupsAvailable")}</p>
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {orderedGroups.map((group) => {
+              const picks = groupDraft(group);
+              const groupOpen = canSubmit && group.predictionOpen;
+              return (
+                <div key={group.groupName} className="rounded-lg border bg-white p-4 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h3 className="font-semibold">{t("group")} {group.groupName}</h3>
+                    <Badge variant={groupOpen ? "success" : "muted"}>{groupOpen ? t("open") : t("closed")}</Badge>
+                  </div>
+                  <div className="grid gap-3">
+                    {[0, 1, 2, 3].map((position) => (
+                      <PositionSelect
+                        key={position}
+                        label={positionLabel(position, t)}
+                        teams={group.teams}
+                        value={picks[position] ?? ""}
+                        selectedValues={picks}
+                        disabled={!groupOpen}
+                        onChange={(teamId) => updateGroupDraft(group.groupName, position, teamId)}
+                      />
+                    ))}
+                  </div>
+                  {group.predictionSubmittedAt ? (
+                    <p className="mt-3 text-xs text-muted-foreground">{t("lastSubmitted")} {formatDateTime(group.predictionSubmittedAt, language)}</p>
+                  ) : null}
+                  <Button className="mt-4" size="sm" disabled={submitGroupMutation.isPending || !groupOpen} onClick={() => saveGroup(group)}>
+                    {t("saveGroupPrediction")}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">{t("finalRankingPrediction")}</h2>
+          </div>
+          <Badge variant={finalRanking && canSubmit && finalRanking.predictionOpen ? "success" : "muted"}>
+            {finalRanking && canSubmit && finalRanking.predictionOpen ? t("open") : t("closed")}
+          </Badge>
+        </div>
+        {!finalRanking ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("loadingPool")}</p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            <PositionSelect
+              label={t("champion")}
+              teams={finalRanking.teams}
+              value={finalPicks.championTeamId}
+              selectedValues={Object.values(finalPicks)}
+              disabled={!canSubmit || !finalRanking.predictionOpen}
+              onChange={(teamId) => updateFinalDraft("championTeamId", teamId)}
+            />
+            <PositionSelect
+              label={t("runnerUp")}
+              teams={finalRanking.teams}
+              value={finalPicks.runnerUpTeamId}
+              selectedValues={Object.values(finalPicks)}
+              disabled={!canSubmit || !finalRanking.predictionOpen}
+              onChange={(teamId) => updateFinalDraft("runnerUpTeamId", teamId)}
+            />
+            <PositionSelect
+              label={t("thirdPlace")}
+              teams={finalRanking.teams}
+              value={finalPicks.thirdPlaceTeamId}
+              selectedValues={Object.values(finalPicks)}
+              disabled={!canSubmit || !finalRanking.predictionOpen}
+              onChange={(teamId) => updateFinalDraft("thirdPlaceTeamId", teamId)}
+            />
+            <PositionSelect
+              label={t("fourthPlace")}
+              teams={finalRanking.teams}
+              value={finalPicks.fourthPlaceTeamId}
+              selectedValues={Object.values(finalPicks)}
+              disabled={!canSubmit || !finalRanking.predictionOpen}
+              onChange={(teamId) => updateFinalDraft("fourthPlaceTeamId", teamId)}
+            />
+            <div className="md:col-span-2">
+              {finalRanking.predictionSubmittedAt ? (
+                <p className="mb-3 text-xs text-muted-foreground">{t("lastSubmitted")} {formatDateTime(finalRanking.predictionSubmittedAt, language)}</p>
+              ) : null}
+              <Button disabled={submitFinalMutation.isPending || !canSubmit || !finalRanking.predictionOpen} onClick={saveFinalRanking}>
+                {t("saveFinalRanking")}
+              </Button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">{t("topScorerPrediction")}</h2>
+          </div>
+          <Badge variant={topScorer && canSubmit && topScorer.predictionOpen ? "success" : "muted"}>
+            {topScorer && canSubmit && topScorer.predictionOpen ? t("open") : t("closed")}
+          </Badge>
+        </div>
+        {!topScorer ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("loadingPool")}</p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium">{t("topScorerCountry")}</span>
+              <select
+                aria-label={t("topScorerCountry")}
+                className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                value={topScorerPick.teamId}
+                disabled={!canSubmit || !topScorer.predictionOpen}
+                onChange={(event) => updateTopScorerDraft("teamId", event.target.value)}
+              >
+                <option value="">{t("selectTeam")}</option>
+                {topScorer.teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {flagForFifaCode(team.fifaCode)} {team.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium">{t("topScorerPlayer")}</span>
+              <Input
+                aria-label={t("topScorerPlayer")}
+                value={topScorerPick.playerName}
+                disabled={!canSubmit || !topScorer.predictionOpen}
+                maxLength={120}
+                placeholder={t("topScorerPlayerPlaceholder")}
+                onChange={(event) => updateTopScorerDraft("playerName", event.target.value)}
+              />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium">{t("topScorerGoals")}</span>
+              <select
+                aria-label={t("topScorerGoals")}
+                className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                value={topScorerPick.goals}
+                disabled={!canSubmit || !topScorer.predictionOpen}
+                onChange={(event) => updateTopScorerDraft("goals", event.target.value)}
+              >
+                <option value="">{t("selectGoals")}</option>
+                {Array.from({ length: 15 }, (_, index) => index + 1).map((goals) => (
+                  <option key={goals} value={String(goals)}>
+                    {goals}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="md:col-span-3">
+              {topScorer.predictionSubmittedAt ? (
+                <p className="mb-3 text-xs text-muted-foreground">{t("lastSubmitted")} {formatDateTime(topScorer.predictionSubmittedAt, language)}</p>
+              ) : null}
+              <Button disabled={submitTopScorerMutation.isPending || !canSubmit || !topScorer.predictionOpen} onClick={saveTopScorer}>
+                {t("saveTopScorer")}
+              </Button>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function PositionSelect({
+  label,
+  teams,
+  value,
+  selectedValues,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  teams: TeamSummary[];
+  value: string;
+  selectedValues: string[];
+  disabled: boolean;
+  onChange: (teamId: string) => void;
+}) {
+  const { t } = useLanguage();
+  const selected = new Set(selectedValues.filter(Boolean));
+
+  return (
+    <label className="grid gap-1 text-sm">
+      <span className="font-medium">{label}</span>
+      <select
+        aria-label={label}
+        className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">{t("selectTeam")}</option>
+        {teams.map((team) => (
+          <option key={team.id} value={team.id} disabled={selected.has(team.id) && team.id !== value}>
+            {flagForFifaCode(team.fifaCode)} {team.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -705,6 +1117,50 @@ function ManagedParticipantsCard({
 
 function hasResolvedParticipants(match: MatchSummary) {
   return Boolean(match.homeTeam && match.awayTeam);
+}
+
+function isTournamentPredictionOpen() {
+  return new Date() < TOURNAMENT_PREDICTION_FRONTEND_DEADLINE;
+}
+
+function hasCompleteDistinctPicks(values: string[], expectedLength: number) {
+  const filled = values.filter(Boolean);
+  return filled.length === expectedLength && new Set(filled).size === expectedLength;
+}
+
+function finalRankingDraftValues(
+  finalRanking: TournamentRankingResponse | undefined,
+  draft: Partial<FinalRankingDraft>,
+): TournamentRankingPicks {
+  return {
+    championTeamId: draft.championTeamId ?? finalRanking?.predicted?.championTeamId ?? "",
+    runnerUpTeamId: draft.runnerUpTeamId ?? finalRanking?.predicted?.runnerUpTeamId ?? "",
+    thirdPlaceTeamId: draft.thirdPlaceTeamId ?? finalRanking?.predicted?.thirdPlaceTeamId ?? "",
+    fourthPlaceTeamId: draft.fourthPlaceTeamId ?? finalRanking?.predicted?.fourthPlaceTeamId ?? "",
+  };
+}
+
+function topScorerDraftValues(topScorer: TopScorerResponse | undefined, draft: Partial<TopScorerDraft>): TopScorerDraft {
+  return {
+    teamId: draft.teamId ?? topScorer?.predicted?.teamId ?? "",
+    playerName: draft.playerName ?? topScorer?.predicted?.playerName ?? "",
+    goals: draft.goals ?? (topScorer?.predicted?.goals ? String(topScorer.predicted.goals) : ""),
+  };
+}
+
+function positionLabel(position: number, t: ReturnType<typeof useLanguage>["t"]) {
+  switch (position) {
+    case 0:
+      return t("firstPlace");
+    case 1:
+      return t("secondPlace");
+    case 2:
+      return t("thirdPlace");
+    case 3:
+      return t("fourthPlace");
+    default:
+      return `${position + 1}`;
+  }
 }
 
 function FeedbackAlert({ feedback }: { feedback: Exclude<FeedbackMessage, null> }) {

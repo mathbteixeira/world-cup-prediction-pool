@@ -1,7 +1,9 @@
 import type {
   ApiErrorResponse,
   AdminPoolSummary,
+  AdminTopScorerPrediction,
   CreatePoolRequest,
+  GroupStandingResponse,
   LeaderboardEntry,
   ManagedParticipant,
   MatchFilters,
@@ -12,6 +14,11 @@ import type {
   PredictionResponse,
   RecalculationResponse,
   TournamentSummary,
+  TournamentRankingPicks,
+  TournamentRankingResponse,
+  TopScorerPick,
+  TopScorerRecalculationResponse,
+  TopScorerResponse,
   TokenResponse,
 } from "./types";
 
@@ -107,6 +114,31 @@ export const api = {
       body: JSON.stringify(body),
     }),
   listPredictions: (poolId: string) => request<PoolPrediction[]>(`/api/v1/pools/${poolId}/predictions`),
+  listGroupStandings: (poolId: string) => request<GroupStandingResponse[]>(`/api/v1/pools/${poolId}/groups`),
+  submitGroupStandingPrediction: (poolId: string, groupName: string, teamIdsByPosition: string[]) =>
+    request<GroupStandingResponse>(`/api/v1/pools/${poolId}/groups/${groupName}/prediction`, {
+      method: "PUT",
+      body: JSON.stringify({ teamIdsByPosition }),
+    }),
+  getFinalRanking: (poolId: string) => request<TournamentRankingResponse>(`/api/v1/pools/${poolId}/final-ranking`),
+  submitFinalRankingPrediction: (poolId: string, body: TournamentRankingPicks) =>
+    request<TournamentRankingResponse>(`/api/v1/pools/${poolId}/final-ranking/prediction`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  getTopScorer: (poolId: string) => request<TopScorerResponse>(`/api/v1/pools/${poolId}/top-scorer`),
+  submitTopScorerPrediction: (poolId: string, body: TopScorerPick) =>
+    request<TopScorerResponse>(`/api/v1/pools/${poolId}/top-scorer/prediction`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  listAdminTopScorerPredictions: (tournamentId: string) =>
+    request<AdminTopScorerPrediction[]>(`/api/v1/admin/tournaments/${tournamentId}/top-scorer/predictions`),
+  validateTopScorerPrediction: (tournamentId: string, predictionId: string, body: { playerCorrect: boolean; goalsCorrect: boolean }) =>
+    request<TopScorerRecalculationResponse>(`/api/v1/admin/tournaments/${tournamentId}/top-scorer/predictions/${predictionId}/validation`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
   leaderboard: (poolId: string) => request<LeaderboardEntry[]>(`/api/v1/pools/${poolId}/leaderboard`),
   listManagedParticipants: (poolId: string) => request<ManagedParticipant[]>(`/api/v1/pools/${poolId}/managed-participants`),
   createManagedParticipant: (poolId: string, body: { name: string }) =>

@@ -66,6 +66,80 @@ export type TeamSummary = {
   fifaCode: string;
 };
 
+export type GroupStandingResponse = {
+  poolId: string;
+  tournamentId: string;
+  groupName: string;
+  teams: TeamSummary[];
+  predictionDeadline: string | null;
+  predictionOpen: boolean;
+  predictedTeamIdsByPosition: string[] | null;
+  predictionSubmittedAt: string | null;
+  officialStandingConfirmed: boolean;
+  officialTeamIdsByPosition: string[] | null;
+};
+
+export type TournamentRankingPicks = {
+  championTeamId: string;
+  runnerUpTeamId: string;
+  thirdPlaceTeamId: string;
+  fourthPlaceTeamId: string;
+};
+
+export type TournamentRankingResponse = {
+  poolId: string;
+  tournamentId: string;
+  teams: TeamSummary[];
+  predictionDeadline: string | null;
+  predictionOpen: boolean;
+  predicted: TournamentRankingPicks | null;
+  predictionSubmittedAt: string | null;
+  officialRankingConfirmed: boolean;
+  official: TournamentRankingPicks | null;
+};
+
+export type TopScorerPick = {
+  teamId: string;
+  playerName: string;
+  goals: number;
+};
+
+export type TopScorerResponse = {
+  poolId: string;
+  tournamentId: string;
+  teams: TeamSummary[];
+  predictionDeadline: string | null;
+  predictionOpen: boolean;
+  predicted: TopScorerPick | null;
+  predictionSubmittedAt: string | null;
+};
+
+export type TopScorerRecalculationResponse = {
+  tournamentId: string;
+  resultChecksum: string;
+  scoredPredictions: number;
+  affectedPools: number;
+  idempotentReplay: boolean;
+};
+
+export type AdminTopScorerPrediction = {
+  predictionId: string;
+  poolId: string;
+  poolName: string;
+  userId: string;
+  username: string;
+  email: string;
+  team: TeamSummary;
+  playerName: string;
+  predictedGoals: number;
+  submittedAt: string;
+  validated: boolean;
+  playerCorrect: boolean | null;
+  goalsCorrect: boolean | null;
+  pointsAwarded: number | null;
+  validatedAt: string | null;
+};
+
 export type MatchResult = {
   homeScore: number;
   awayScore: number;

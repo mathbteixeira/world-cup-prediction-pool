@@ -1,6 +1,7 @@
 package io.github.mathbteixeira.worldcuppredictionpool.scoring.persistence;
 
 import io.github.mathbteixeira.worldcuppredictionpool.scoring.domain.LeaderboardEntry;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;
@@ -17,5 +18,6 @@ public interface LeaderboardEntryRepository extends JpaRepository<LeaderboardEnt
 
     void deleteByPoolId(UUID poolId);
 
+    @EntityGraph(attributePaths = {"user", "managedParticipant"})
     List<LeaderboardEntry> findAllByPoolIdOrderByRankPositionAsc(UUID poolId);
 }

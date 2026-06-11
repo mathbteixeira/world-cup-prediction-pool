@@ -15,6 +15,12 @@ const apiMock = vi.hoisted(() => ({
   listPredictions: vi.fn(),
   leaderboard: vi.fn(),
   listManagedParticipants: vi.fn(),
+  listGroupStandings: vi.fn(),
+  submitGroupStandingPrediction: vi.fn(),
+  getFinalRanking: vi.fn(),
+  submitFinalRankingPrediction: vi.fn(),
+  getTopScorer: vi.fn(),
+  submitTopScorerPrediction: vi.fn(),
   submitPrediction: vi.fn(),
   resolveParticipants: vi.fn(),
 }));
@@ -74,6 +80,56 @@ describe("PoolDetailPage", () => {
     apiMock.listPredictions.mockResolvedValue([]);
     apiMock.leaderboard.mockResolvedValue([]);
     apiMock.listManagedParticipants.mockResolvedValue([]);
+    apiMock.listGroupStandings.mockResolvedValue([
+      {
+        poolId: "pool-1",
+        tournamentId: "11111111-1111-1111-1111-111111111111",
+        groupName: "A",
+        teams: [
+          { id: "team-1", name: "Brazil", fifaCode: "BRA" },
+          { id: "team-2", name: "Spain", fifaCode: "ESP" },
+          { id: "team-3", name: "France", fifaCode: "FRA" },
+          { id: "team-4", name: "Japan", fifaCode: "JPN" },
+        ],
+        predictionDeadline: "2026-06-20T23:59:59Z",
+        predictionOpen: true,
+        predictedTeamIdsByPosition: null,
+        predictionSubmittedAt: null,
+        officialStandingConfirmed: false,
+        officialTeamIdsByPosition: null,
+      },
+    ]);
+    apiMock.submitGroupStandingPrediction.mockResolvedValue({});
+    apiMock.getFinalRanking.mockResolvedValue({
+      poolId: "pool-1",
+      tournamentId: "11111111-1111-1111-1111-111111111111",
+      teams: [
+        { id: "team-1", name: "Brazil", fifaCode: "BRA" },
+        { id: "team-2", name: "Spain", fifaCode: "ESP" },
+        { id: "team-3", name: "France", fifaCode: "FRA" },
+        { id: "team-4", name: "Japan", fifaCode: "JPN" },
+      ],
+      predictionDeadline: "2026-06-20T23:59:59Z",
+      predictionOpen: true,
+      predicted: null,
+      predictionSubmittedAt: null,
+      officialRankingConfirmed: false,
+      official: null,
+    });
+    apiMock.submitFinalRankingPrediction.mockResolvedValue({});
+    apiMock.getTopScorer.mockResolvedValue({
+      poolId: "pool-1",
+      tournamentId: "11111111-1111-1111-1111-111111111111",
+      teams: [
+        { id: "team-1", name: "Brazil", fifaCode: "BRA" },
+        { id: "team-2", name: "Spain", fifaCode: "ESP" },
+      ],
+      predictionDeadline: "2026-06-20T23:59:59Z",
+      predictionOpen: true,
+      predicted: null,
+      predictionSubmittedAt: null,
+    });
+    apiMock.submitTopScorerPrediction.mockResolvedValue({});
     apiMock.submitPrediction.mockResolvedValue({
       predictionId: "prediction-1",
       poolId: "pool-1",
@@ -175,6 +231,49 @@ describe("PoolDetailPage", () => {
     expect(screen.queryByText(/Brazil vs/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/W89/).length).toBeGreaterThan(0);
     expect(screen.getByText("Indefinido")).toBeInTheDocument();
+  });
+
+  it("submits tournament-wide predictions", async () => {
+    renderPoolDetailPage();
+
+    await waitFor(() => expect(screen.getByText("Family Pool")).toBeInTheDocument());
+    await userEvent.click(await screen.findByRole("tab", { name: "Palpites do torneio" }));
+
+    await userEvent.selectOptions(await screen.findByLabelText("1º lugar"), "team-1");
+    await userEvent.selectOptions(screen.getByLabelText("2º lugar"), "team-2");
+    await userEvent.selectOptions(screen.getAllByLabelText("Terceiro lugar")[0], "team-3");
+    await userEvent.selectOptions(screen.getAllByLabelText("Quarto lugar")[0], "team-4");
+    await userEvent.click(screen.getByRole("button", { name: "Salvar palpite do grupo" }));
+
+    await userEvent.selectOptions(screen.getByLabelText("Campeão"), "team-1");
+    await userEvent.selectOptions(screen.getByLabelText("Vice-campeão"), "team-2");
+    await userEvent.selectOptions(screen.getAllByLabelText("Terceiro lugar")[1], "team-3");
+    await userEvent.selectOptions(screen.getAllByLabelText("Quarto lugar")[1], "team-4");
+    await userEvent.click(screen.getByRole("button", { name: "Salvar top 4 final" }));
+
+    await userEvent.selectOptions(screen.getByLabelText("País do goleador"), "team-1");
+    await userEvent.type(screen.getByLabelText("Jogador goleador"), "Vinicius Junior");
+    await userEvent.selectOptions(screen.getByLabelText("Gols previstos"), "7");
+    await userEvent.click(screen.getByRole("button", { name: "Salvar goleador" }));
+
+    await waitFor(() =>
+      expect(apiMock.submitGroupStandingPrediction).toHaveBeenCalledWith("pool-1", "A", ["team-1", "team-2", "team-3", "team-4"]),
+    );
+    await waitFor(() =>
+      expect(apiMock.submitFinalRankingPrediction).toHaveBeenCalledWith("pool-1", {
+        championTeamId: "team-1",
+        runnerUpTeamId: "team-2",
+        thirdPlaceTeamId: "team-3",
+        fourthPlaceTeamId: "team-4",
+      }),
+    );
+    await waitFor(() =>
+      expect(apiMock.submitTopScorerPrediction).toHaveBeenCalledWith("pool-1", {
+        teamId: "team-1",
+        playerName: "Vinicius Junior",
+        goals: 7,
+      }),
+    );
   });
 
 });
