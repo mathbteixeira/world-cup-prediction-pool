@@ -1,13 +1,13 @@
 import type {
   ApiErrorResponse,
   AdminPoolSummary,
+  AdminTopScorerPrediction,
   CreatePoolRequest,
   GroupStandingResponse,
   LeaderboardEntry,
   ManagedParticipant,
   MatchFilters,
   MatchSummary,
-  PlayerSummary,
   PoolMember,
   PoolPrediction,
   PoolSummary,
@@ -108,8 +108,6 @@ export const api = {
   listTournaments: () => request<TournamentSummary[]>("/api/v1/tournaments"),
   listMatches: (tournamentId: string, filters: MatchFilters = {}) =>
     request<MatchSummary[]>(`/api/v1/tournaments/${tournamentId}/matches${queryString(filters)}`),
-  listPlayers: (tournamentId: string, teamId: string) =>
-    request<PlayerSummary[]>(`/api/v1/tournaments/${tournamentId}/teams/${teamId}/players`),
   submitPrediction: (poolId: string, matchId: string, body: { homeScore: number; awayScore: number }) =>
     request<PredictionResponse>(`/api/v1/pools/${poolId}/matches/${matchId}/prediction`, {
       method: "PUT",
@@ -134,8 +132,10 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
-  confirmTopScorer: (tournamentId: string, body: { playerId: string; goals: number }) =>
-    request<TopScorerRecalculationResponse>(`/api/v1/admin/tournaments/${tournamentId}/top-scorer`, {
+  listAdminTopScorerPredictions: (tournamentId: string) =>
+    request<AdminTopScorerPrediction[]>(`/api/v1/admin/tournaments/${tournamentId}/top-scorer/predictions`),
+  validateTopScorerPrediction: (tournamentId: string, predictionId: string, body: { playerCorrect: boolean; goalsCorrect: boolean }) =>
+    request<TopScorerRecalculationResponse>(`/api/v1/admin/tournaments/${tournamentId}/top-scorer/predictions/${predictionId}/validation`, {
       method: "PUT",
       body: JSON.stringify(body),
     }),

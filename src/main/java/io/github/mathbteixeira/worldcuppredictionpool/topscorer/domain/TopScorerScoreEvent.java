@@ -45,6 +45,12 @@ public class TopScorerScoreEvent extends BaseEntity {
     @Column(nullable = false)
     private int goalsPointsAwarded;
 
+    @Column(nullable = false)
+    private boolean playerCorrect;
+
+    @Column(nullable = false)
+    private boolean goalsCorrect;
+
     @Column(nullable = false, length = 500)
     private String explanation;
 

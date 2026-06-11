@@ -4,7 +4,7 @@ import java.util.UUID;
 
 public record TopScorerPick(
         UUID teamId,
-        UUID playerId,
+        String playerName,
         int goals
 ) {
 }

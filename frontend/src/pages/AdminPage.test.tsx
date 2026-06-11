@@ -10,10 +10,10 @@ import { AdminPage } from "./AdminPage";
 
 const apiMock = vi.hoisted(() => ({
   listMatches: vi.fn(),
-  listPlayers: vi.fn(),
   resolveParticipants: vi.fn(),
   upsertResult: vi.fn(),
-  confirmTopScorer: vi.fn(),
+  listAdminTopScorerPredictions: vi.fn(),
+  validateTopScorerPrediction: vi.fn(),
   listAdminPools: vi.fn(),
   deleteAdminPool: vi.fn(),
   listPoolMembers: vi.fn(),
@@ -70,11 +70,26 @@ describe("AdminPage", () => {
     ]);
     apiMock.resolveParticipants.mockResolvedValue({});
     apiMock.upsertResult.mockResolvedValue({ scoredPredictions: 0, affectedPools: 0 });
-    apiMock.listPlayers.mockResolvedValue([
-      { id: "player-1", teamId: "team-1", name: "Brazil Player 01", rosterNumber: 1 },
-      { id: "player-2", teamId: "team-1", name: "Brazil Player 02", rosterNumber: 2 },
+    apiMock.listAdminTopScorerPredictions.mockResolvedValue([
+      {
+        predictionId: "top-scorer-1",
+        poolId: "pool-1",
+        poolName: "Family Pool",
+        userId: "member-1",
+        username: "member",
+        email: "member@example.com",
+        team: { id: "team-1", name: "Brazil", fifaCode: "BRA" },
+        playerName: "Vinicius Junior",
+        predictedGoals: 7,
+        submittedAt: "2026-06-10T12:00:00Z",
+        validated: false,
+        playerCorrect: null,
+        goalsCorrect: null,
+        pointsAwarded: null,
+        validatedAt: null,
+      },
     ]);
-    apiMock.confirmTopScorer.mockResolvedValue({ scoredPredictions: 1, affectedPools: 1 });
+    apiMock.validateTopScorerPrediction.mockResolvedValue({ scoredPredictions: 1, affectedPools: 1 });
     apiMock.listAdminPools.mockResolvedValue([
       {
         id: "pool-1",
@@ -117,7 +132,7 @@ describe("AdminPage", () => {
   it("allows admins to add a pool member and transfer ownership", async () => {
     renderAdminPage();
 
-    await screen.findByText("Family Pool");
+    await screen.findByLabelText("Email do membro");
     await userEvent.type(screen.getByLabelText("Email do membro"), "new@example.com");
     await userEvent.click(screen.getByRole("button", { name: "Adicionar membro" }));
     await userEvent.type(screen.getByLabelText("Email do novo dono"), "member@example.com");
@@ -127,24 +142,19 @@ describe("AdminPage", () => {
     await waitFor(() => expect(apiMock.transferPoolOwnership).toHaveBeenCalledWith("pool-1", { email: "member@example.com" }));
   });
 
-  it("allows admins to confirm the tournament top scorer", async () => {
+  it("allows admins to validate a top scorer prediction", async () => {
     renderAdminPage();
 
-    await screen.findByText("Atualização de goleador");
-    await waitFor(() => expect((screen.getByLabelText("País do goleador") as HTMLSelectElement).options.length).toBeGreaterThan(1));
-    await userEvent.selectOptions(screen.getByLabelText("País do goleador"), "team-1");
-    await waitFor(() =>
-      expect(apiMock.listPlayers).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111", "team-1"),
-    );
-    await userEvent.selectOptions(screen.getByLabelText("Jogador goleador"), "player-1");
-    await userEvent.selectOptions(screen.getByLabelText("Gols previstos"), "7");
-    await userEvent.click(screen.getByRole("button", { name: "Confirmar goleador" }));
+    await screen.findByText("Validação de goleador");
+    await screen.findByText(/Vinicius Junior/);
+    await userEvent.click(screen.getByRole("button", { name: "Jogador + gols" }));
 
     await waitFor(() =>
-      expect(apiMock.confirmTopScorer).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111", {
-        playerId: "player-1",
-        goals: 7,
-      }),
+      expect(apiMock.validateTopScorerPrediction).toHaveBeenCalledWith(
+        "11111111-1111-1111-1111-111111111111",
+        "top-scorer-1",
+        { playerCorrect: true, goalsCorrect: true },
+      ),
     );
   });
 

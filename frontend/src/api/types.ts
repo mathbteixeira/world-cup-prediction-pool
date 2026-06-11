@@ -66,13 +66,6 @@ export type TeamSummary = {
   fifaCode: string;
 };
 
-export type PlayerSummary = {
-  id: string;
-  teamId: string;
-  name: string;
-  rosterNumber: number;
-};
-
 export type GroupStandingResponse = {
   poolId: string;
   tournamentId: string;
@@ -107,7 +100,7 @@ export type TournamentRankingResponse = {
 
 export type TopScorerPick = {
   teamId: string;
-  playerId: string;
+  playerName: string;
   goals: number;
 };
 
@@ -119,17 +112,32 @@ export type TopScorerResponse = {
   predictionOpen: boolean;
   predicted: TopScorerPick | null;
   predictionSubmittedAt: string | null;
-  officialTopScorerConfirmed: boolean;
-  official: TopScorerPick | null;
 };
 
 export type TopScorerRecalculationResponse = {
   tournamentId: string;
-  topScorer: TopScorerPick;
   resultChecksum: string;
   scoredPredictions: number;
   affectedPools: number;
   idempotentReplay: boolean;
+};
+
+export type AdminTopScorerPrediction = {
+  predictionId: string;
+  poolId: string;
+  poolName: string;
+  userId: string;
+  username: string;
+  email: string;
+  team: TeamSummary;
+  playerName: string;
+  predictedGoals: number;
+  submittedAt: string;
+  validated: boolean;
+  playerCorrect: boolean | null;
+  goalsCorrect: boolean | null;
+  pointsAwarded: number | null;
+  validatedAt: string | null;
 };
 
 export type MatchResult = {

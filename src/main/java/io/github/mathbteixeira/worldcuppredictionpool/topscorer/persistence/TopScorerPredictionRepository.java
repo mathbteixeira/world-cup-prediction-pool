@@ -12,11 +12,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface TopScorerPredictionRepository extends JpaRepository<TopScorerPrediction, UUID> {
-    @EntityGraph(attributePaths = {"player", "player.team"})
+    @EntityGraph(attributePaths = {"team"})
     Optional<TopScorerPrediction> findByPoolIdAndUserId(UUID poolId, UUID userId);
 
-    @EntityGraph(attributePaths = {"pool", "user", "player"})
+    @EntityGraph(attributePaths = {"pool", "user", "team"})
     List<TopScorerPrediction> findAllByTournamentId(UUID tournamentId);
+
+    @EntityGraph(attributePaths = {"pool", "user", "team", "tournament"})
+    @Query("select p from TopScorerPrediction p where p.id = :predictionId")
+    Optional<TopScorerPrediction> findWithDetailsById(UUID predictionId);
 
     @Query("select p.id from TopScorerPrediction p where p.pool.id = :poolId and p.user.id = :userId")
     List<UUID> findIdsByPoolIdAndUserId(UUID poolId, UUID userId);

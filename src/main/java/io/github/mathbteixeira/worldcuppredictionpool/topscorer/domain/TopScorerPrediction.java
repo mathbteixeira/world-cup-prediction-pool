@@ -2,7 +2,7 @@ package io.github.mathbteixeira.worldcuppredictionpool.topscorer.domain;
 
 import io.github.mathbteixeira.worldcuppredictionpool.common.model.BaseEntity;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
-import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Player;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tournament;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import jakarta.persistence.Column;
@@ -34,8 +34,11 @@ public class TopScorerPrediction extends BaseEntity {
     private Tournament tournament;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "player_id", nullable = false)
-    private Player player;
+    @JoinColumn(name = "team_id", nullable = false)
+    private Team team;
+
+    @Column(nullable = false, length = 120)
+    private String playerName;
 
     @Column(nullable = false)
     private int predictedGoals;
@@ -46,17 +49,19 @@ public class TopScorerPrediction extends BaseEntity {
     protected TopScorerPrediction() {
     }
 
-    public TopScorerPrediction(PredictionPool pool, UserAccount user, Tournament tournament, Player player, int predictedGoals, Instant submittedAt) {
+    public TopScorerPrediction(PredictionPool pool, UserAccount user, Tournament tournament, Team team, String playerName, int predictedGoals, Instant submittedAt) {
         this.pool = pool;
         this.user = user;
         this.tournament = tournament;
-        this.player = player;
+        this.team = team;
+        this.playerName = playerName;
         this.predictedGoals = predictedGoals;
         this.submittedAt = submittedAt;
     }
 
-    public void resubmit(Player player, int predictedGoals, Instant submittedAt) {
-        this.player = player;
+    public void resubmit(Team team, String playerName, int predictedGoals, Instant submittedAt) {
+        this.team = team;
+        this.playerName = playerName;
         this.predictedGoals = predictedGoals;
         this.submittedAt = submittedAt;
     }
@@ -73,8 +78,12 @@ public class TopScorerPrediction extends BaseEntity {
         return tournament;
     }
 
-    public Player getPlayer() {
-        return player;
+    public Team getTeam() {
+        return team;
+    }
+
+    public String getPlayerName() {
+        return playerName;
     }
 
     public int getPredictedGoals() {

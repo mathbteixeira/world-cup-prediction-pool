@@ -10,7 +10,6 @@ import type {
   GroupStandingResponse,
   ManagedParticipant,
   MatchSummary,
-  PlayerSummary,
   PoolPrediction,
   PredictionResponse,
   TeamSummary,
@@ -37,7 +36,7 @@ type GroupStandingDraft = Record<string, string[]>;
 type FinalRankingDraft = Record<keyof TournamentRankingPicks, string>;
 type TopScorerDraft = {
   teamId: string;
-  playerId: string;
+  playerName: string;
   goals: string;
 };
 type MatchSortDirection = "asc" | "desc";
@@ -124,12 +123,6 @@ export function PoolDetailPage() {
     queryKey: ["top-scorer", poolId],
     queryFn: () => api.getTopScorer(poolId),
     enabled: Boolean(poolId) && poolQuery.data?.poolScope === "TOURNAMENT",
-  });
-  const selectedTopScorerTeamId = topScorerDraft.teamId ?? topScorerQuery.data?.predicted?.teamId ?? "";
-  const topScorerPlayersQuery = useQuery({
-    queryKey: ["players", tournamentId, selectedTopScorerTeamId],
-    queryFn: () => api.listPlayers(tournamentId!, selectedTopScorerTeamId),
-    enabled: Boolean(tournamentId) && Boolean(selectedTopScorerTeamId),
   });
 
   const myPredictions = useMemo(() => {
@@ -429,7 +422,6 @@ export function PoolDetailPage() {
               groupStandings={groupStandingsQuery.data ?? []}
               finalRanking={finalRankingQuery.data}
               topScorer={topScorerQuery.data}
-              topScorerPlayers={topScorerPlayersQuery.data ?? []}
               groupDrafts={groupStandingDrafts}
               setGroupDrafts={setGroupStandingDrafts}
               finalDraft={finalRankingDraft}
@@ -508,7 +500,6 @@ function TournamentPredictionsPanel({
   groupStandings,
   finalRanking,
   topScorer,
-  topScorerPlayers,
   groupDrafts,
   setGroupDrafts,
   finalDraft,
@@ -524,7 +515,6 @@ function TournamentPredictionsPanel({
   groupStandings: GroupStandingResponse[];
   finalRanking: TournamentRankingResponse | undefined;
   topScorer: TopScorerResponse | undefined;
-  topScorerPlayers: PlayerSummary[];
   groupDrafts: GroupStandingDraft;
   setGroupDrafts: Dispatch<SetStateAction<GroupStandingDraft>>;
   finalDraft: Partial<FinalRankingDraft>;
@@ -589,7 +579,6 @@ function TournamentPredictionsPanel({
     setTopScorerDraft((current) => ({
       ...current,
       [field]: value,
-      ...(field === "teamId" ? { playerId: "" } : {}),
     }));
   }
 
@@ -599,13 +588,13 @@ function TournamentPredictionsPanel({
       return;
     }
     const goals = Number(topScorerPick.goals);
-    if (!topScorerPick.teamId || !topScorerPick.playerId || !Number.isInteger(goals) || goals < 1 || goals > 15) {
+    if (!topScorerPick.teamId || !topScorerPick.playerName.trim() || !Number.isInteger(goals) || goals < 1 || goals > 15) {
       setFeedback({ type: "error", message: t("selectTopScorer") });
       return;
     }
     submitTopScorerMutation.mutate({
       teamId: topScorerPick.teamId,
-      playerId: topScorerPick.playerId,
+      playerName: topScorerPick.playerName.trim(),
       goals,
     });
   }
@@ -752,20 +741,14 @@ function TournamentPredictionsPanel({
             </label>
             <label className="grid gap-1 text-sm">
               <span className="font-medium">{t("topScorerPlayer")}</span>
-              <select
+              <Input
                 aria-label={t("topScorerPlayer")}
-                className="h-10 rounded-md border border-input bg-white px-3 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                value={topScorerPick.playerId}
-                disabled={!canSubmit || !topScorer.predictionOpen || !topScorerPick.teamId}
-                onChange={(event) => updateTopScorerDraft("playerId", event.target.value)}
-              >
-                <option value="">{t("selectPlayer")}</option>
-                {topScorerPlayers.map((player) => (
-                  <option key={player.id} value={player.id}>
-                    #{player.rosterNumber} {player.name}
-                  </option>
-                ))}
-              </select>
+                value={topScorerPick.playerName}
+                disabled={!canSubmit || !topScorer.predictionOpen}
+                maxLength={120}
+                placeholder={t("topScorerPlayerPlaceholder")}
+                onChange={(event) => updateTopScorerDraft("playerName", event.target.value)}
+              />
             </label>
             <label className="grid gap-1 text-sm">
               <span className="font-medium">{t("topScorerGoals")}</span>
@@ -1160,7 +1143,7 @@ function finalRankingDraftValues(
 function topScorerDraftValues(topScorer: TopScorerResponse | undefined, draft: Partial<TopScorerDraft>): TopScorerDraft {
   return {
     teamId: draft.teamId ?? topScorer?.predicted?.teamId ?? "",
-    playerId: draft.playerId ?? topScorer?.predicted?.playerId ?? "",
+    playerName: draft.playerName ?? topScorer?.predicted?.playerName ?? "",
     goals: draft.goals ?? (topScorer?.predicted?.goals ? String(topScorer.predicted.goals) : ""),
   };
 }

@@ -20,7 +20,6 @@ const apiMock = vi.hoisted(() => ({
   getFinalRanking: vi.fn(),
   submitFinalRankingPrediction: vi.fn(),
   getTopScorer: vi.fn(),
-  listPlayers: vi.fn(),
   submitTopScorerPrediction: vi.fn(),
   submitPrediction: vi.fn(),
   resolveParticipants: vi.fn(),
@@ -129,13 +128,7 @@ describe("PoolDetailPage", () => {
       predictionOpen: true,
       predicted: null,
       predictionSubmittedAt: null,
-      officialTopScorerConfirmed: false,
-      official: null,
     });
-    apiMock.listPlayers.mockResolvedValue([
-      { id: "player-1", teamId: "team-1", name: "BRA Player 01", rosterNumber: 1 },
-      { id: "player-2", teamId: "team-1", name: "BRA Player 02", rosterNumber: 2 },
-    ]);
     apiMock.submitTopScorerPrediction.mockResolvedValue({});
     apiMock.submitPrediction.mockResolvedValue({
       predictionId: "prediction-1",
@@ -259,8 +252,7 @@ describe("PoolDetailPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Salvar top 4 final" }));
 
     await userEvent.selectOptions(screen.getByLabelText("País do goleador"), "team-1");
-    await waitFor(() => expect(apiMock.listPlayers).toHaveBeenCalledWith("11111111-1111-1111-1111-111111111111", "team-1"));
-    await userEvent.selectOptions(screen.getByLabelText("Jogador goleador"), "player-1");
+    await userEvent.type(screen.getByLabelText("Jogador goleador"), "Vinicius Junior");
     await userEvent.selectOptions(screen.getByLabelText("Gols previstos"), "7");
     await userEvent.click(screen.getByRole("button", { name: "Salvar goleador" }));
 
@@ -278,7 +270,7 @@ describe("PoolDetailPage", () => {
     await waitFor(() =>
       expect(apiMock.submitTopScorerPrediction).toHaveBeenCalledWith("pool-1", {
         teamId: "team-1",
-        playerId: "player-1",
+        playerName: "Vinicius Junior",
         goals: 7,
       }),
     );

@@ -35,6 +35,6 @@ public class TopScorerController {
     public TopScorerResponse submit(@PathVariable UUID poolId,
                                     @Valid @RequestBody SubmitTopScorerPredictionRequest request,
                                     Authentication authentication) {
-        return topScorerPredictionService.submit(poolId, authentication.getName(), request.teamId(), request.playerId(), request.goals());
+        return topScorerPredictionService.submit(poolId, authentication.getName(), request.teamId(), request.playerName(), request.goals());
     }
 }

@@ -32,6 +32,12 @@ public class TopScorerCurrentScore extends BaseEntity {
     private int pointsAwarded;
 
     @Column(nullable = false)
+    private boolean playerCorrect;
+
+    @Column(nullable = false)
+    private boolean goalsCorrect;
+
+    @Column(nullable = false)
     private int ruleVersion;
 
     @Column(nullable = false, length = 120)
@@ -43,20 +49,40 @@ public class TopScorerCurrentScore extends BaseEntity {
     protected TopScorerCurrentScore() {
     }
 
-    public TopScorerCurrentScore(TopScorerPrediction prediction, PredictionPool pool, UserAccount user, int pointsAwarded, int ruleVersion, String resultChecksum, Instant recalculatedAt) {
+    public TopScorerCurrentScore(TopScorerPrediction prediction, PredictionPool pool, UserAccount user, int pointsAwarded, boolean playerCorrect, boolean goalsCorrect, int ruleVersion, String resultChecksum, Instant recalculatedAt) {
         this.prediction = prediction;
         this.pool = pool;
         this.user = user;
         this.pointsAwarded = pointsAwarded;
+        this.playerCorrect = playerCorrect;
+        this.goalsCorrect = goalsCorrect;
         this.ruleVersion = ruleVersion;
         this.resultChecksum = resultChecksum;
         this.recalculatedAt = recalculatedAt;
     }
 
-    public void updateScore(int pointsAwarded, int ruleVersion, String resultChecksum, Instant recalculatedAt) {
+    public void updateScore(int pointsAwarded, boolean playerCorrect, boolean goalsCorrect, int ruleVersion, String resultChecksum, Instant recalculatedAt) {
         this.pointsAwarded = pointsAwarded;
+        this.playerCorrect = playerCorrect;
+        this.goalsCorrect = goalsCorrect;
         this.ruleVersion = ruleVersion;
         this.resultChecksum = resultChecksum;
         this.recalculatedAt = recalculatedAt;
+    }
+
+    public int getPointsAwarded() {
+        return pointsAwarded;
+    }
+
+    public boolean isPlayerCorrect() {
+        return playerCorrect;
+    }
+
+    public boolean isGoalsCorrect() {
+        return goalsCorrect;
+    }
+
+    public Instant getRecalculatedAt() {
+        return recalculatedAt;
     }
 }

@@ -26,7 +26,6 @@ import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Tournament;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.TournamentStatus;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.MatchRepository;
-import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.PlayerRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TeamRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TournamentRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
@@ -69,7 +68,6 @@ class StandingsAndRankingScoringIntegrationTest {
     @Autowired private UserAccountRepository userAccountRepository;
     @Autowired private TournamentRepository tournamentRepository;
     @Autowired private TeamRepository teamRepository;
-    @Autowired private PlayerRepository playerRepository;
     @Autowired private MatchRepository matchRepository;
     @Autowired private PredictionPoolRepository predictionPoolRepository;
     @Autowired private PoolMembershipRepository poolMembershipRepository;
@@ -107,7 +105,6 @@ class StandingsAndRankingScoringIntegrationTest {
         matchRepository.deleteAllInBatch();
         poolMembershipRepository.deleteAllInBatch();
         predictionPoolRepository.deleteAllInBatch();
-        playerRepository.deleteAllInBatch();
         teamRepository.deleteAllInBatch();
         tournamentRepository.deleteAllInBatch();
         userAccountRepository.deleteAllInBatch();

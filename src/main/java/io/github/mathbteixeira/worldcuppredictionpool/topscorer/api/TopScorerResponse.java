@@ -13,8 +13,6 @@ public record TopScorerResponse(
         Instant predictionDeadline,
         boolean predictionOpen,
         TopScorerPick predicted,
-        Instant predictionSubmittedAt,
-        boolean officialTopScorerConfirmed,
-        TopScorerPick official
+        Instant predictionSubmittedAt
 ) {
 }

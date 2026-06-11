@@ -3,8 +3,8 @@ package io.github.mathbteixeira.worldcuppredictionpool.topscorer.application;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.domain.PredictionPool;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PoolMembershipRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.pool.persistence.PredictionPoolRepository;
-import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Player;
-import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.PlayerRepository;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.domain.Team;
+import io.github.mathbteixeira.worldcuppredictionpool.tournament.persistence.TeamRepository;
 import io.github.mathbteixeira.worldcuppredictionpool.user.domain.UserAccount;
 import io.github.mathbteixeira.worldcuppredictionpool.user.persistence.UserAccountRepository;
 import org.springframework.http.HttpStatus;
@@ -23,18 +23,18 @@ public class TopScorerSupport {
     private final PredictionPoolRepository predictionPoolRepository;
     private final PoolMembershipRepository poolMembershipRepository;
     private final UserAccountRepository userAccountRepository;
-    private final PlayerRepository playerRepository;
+    private final TeamRepository teamRepository;
     private final Clock clock;
 
     public TopScorerSupport(PredictionPoolRepository predictionPoolRepository,
                             PoolMembershipRepository poolMembershipRepository,
                             UserAccountRepository userAccountRepository,
-                            PlayerRepository playerRepository,
+                            TeamRepository teamRepository,
                             Clock clock) {
         this.predictionPoolRepository = predictionPoolRepository;
         this.poolMembershipRepository = poolMembershipRepository;
         this.userAccountRepository = userAccountRepository;
-        this.playerRepository = playerRepository;
+        this.teamRepository = teamRepository;
         this.clock = clock;
     }
 
@@ -56,18 +56,13 @@ public class TopScorerSupport {
         return user;
     }
 
-    Player resolvePlayer(UUID tournamentId, UUID teamId, UUID playerId) {
-        Player player = playerRepository.findByIdAndTeamTournamentId(playerId, tournamentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Player does not belong to the tournament"));
-        if (!player.getTeam().getId().equals(teamId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Player does not belong to the selected team");
+    Team resolveTeam(UUID tournamentId, UUID teamId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Team not found"));
+        if (!team.getTournament().getId().equals(tournamentId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Team does not belong to the tournament");
         }
-        return player;
-    }
-
-    Player resolvePlayer(UUID tournamentId, UUID playerId) {
-        return playerRepository.findByIdAndTeamTournamentId(playerId, tournamentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Player does not belong to the tournament"));
+        return team;
     }
 
     Instant predictionDeadline() {
